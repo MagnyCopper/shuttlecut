@@ -1316,8 +1316,8 @@ def make_contact_sheets(video: str, outdir: str, step_s: float = 2.0,
     for si in range(math.ceil(len(frames) / per)):
         chunk = frames[si * per : (si + 1) * per]
         fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 2.7))
-        for ax, f in zip(axes.flat, chunk):
-            t = (si * per + list(frames).index(f) + 1) * step_s
+        for li, (ax, f) in enumerate(zip(axes.flat, chunk)):
+            t = (si * per + li + 1) * step_s  # 局部索引,勿用全局 index(会重复累加 si*per)
             ax.imshow(plt.imread(f))
             ax.set_title(f"{t:.0f}s", fontsize=9)
             ax.axis("off")
