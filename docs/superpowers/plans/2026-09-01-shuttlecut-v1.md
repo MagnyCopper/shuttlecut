@@ -563,9 +563,14 @@ def motion_energy(rows: list[FramePersons], frame_h: float,
 
 
 def smooth(series: EnergySeries, window_s: float, fps: float) -> EnergySeries:
+    # 边缘用 edge 填充而非零填充:零填充会把首尾能量往 0 拉,
+    # 可能把视频开头/结尾的真实回合误判为间歇(验收风险);edge 填充保持边缘电平
     k = max(1, int(round(window_s * fps)))
-    v = np.convolve(np.array(series.values), np.ones(k) / k, mode="same")
-    return EnergySeries(series.times, v.tolist())
+    v = np.asarray(series.values, dtype=float)
+    pad = k // 2
+    vp = np.pad(v, pad, mode="edge")
+    out = np.convolve(vp, np.ones(k) / k, mode="valid")
+    return EnergySeries(series.times, out.tolist())
 ```
 
 - [ ] **Step 4: 运行测试通过**
