@@ -23,9 +23,15 @@ def export_clips(video: str, rallies: list[Rally], out_dir: str,
     return clips
 
 
+def _concat_line(path: str) -> str:
+    """concat 行;路径含单引号时转义(闭引号+转义引号+重开引号)。"""
+    escaped = path.replace("'", "'\\''")
+    return f"file '{escaped}'"
+
+
 def export_reel(clips: list[str], out_path: str) -> str:
     lst = Path(out_path).with_suffix(".txt")
-    lst.write_text("\n".join(f"file '{c}'" for c in clips))
+    lst.write_text("\n".join(_concat_line(c) for c in clips))
     subprocess.run(
         ["ffmpeg", "-loglevel", "error", "-f", "concat", "-safe", "0",
          "-i", str(lst), "-c", "copy", out_path],
