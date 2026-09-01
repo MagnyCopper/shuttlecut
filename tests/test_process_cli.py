@@ -12,7 +12,19 @@ def test_process_end_to_end(synth_video, tmp_path, capsys):
     data = json.loads((out / "rallies.json").read_text())
     assert data["video"] == "synth"
     assert isinstance(data["rallies"], list)  # testsrc 无真实回合,允许空
-    assert "summary" in capsys.readouterr().out.lower() or True  # 摘要打印不拦截
+    assert "[summary]" in capsys.readouterr().out
+
+
+def test_process_manual_roi_writes_file_and_params(synth_video, tmp_path, capsys):
+    roi = "100,100,800,500"
+    rc = main(["process", synth_video, "--out", str(tmp_path), "--roi", roi,
+               "--device", "cpu", "--no-reel"])
+    assert rc == 0
+    out = tmp_path / "synth"
+    assert (out / "roi.txt").read_text() == roi
+    data = json.loads((out / "rallies.json").read_text())
+    assert data["params"]["roi"] == [100.0, 100.0, 800.0, 500.0]
+    capsys.readouterr()
 
 
 def test_process_no_audio(synth_video, tmp_path):

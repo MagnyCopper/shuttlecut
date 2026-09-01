@@ -55,11 +55,9 @@ def process_one(video: str, out_root: str, args) -> int:
 
     roi = _parse_roi(args.roi)
     if roi is None:
-        try:
-            roi = auto_roi(rows, float(pmeta["frame_w"]), frame_h)
-        except IndexError:  # 零大人体检测 → 降级全画面 ROI
-            roi = (0.0, 0.0, float(pmeta["frame_w"]), frame_h)
-        (outdir / "roi.txt").write_text(",".join(f"{v:.1f}" for v in roi))
+        roi = auto_roi(rows, float(pmeta["frame_w"]), frame_h)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "roi.txt").write_text(",".join(f"{v:g}" for v in roi))
     energy = smooth(motion_energy(rows, frame_h, roi=roi), window_s=2.0, fps=5.0)
 
     params = SegParams(min_rally_s=args.min_rally, min_idle_s=args.min_idle)
@@ -72,7 +70,6 @@ def process_one(video: str, out_root: str, args) -> int:
         except Exception as e:  # 无音轨/解码失败 → 降级纯视觉
             print(f"[warn] 音频精修跳过: {e}")
 
-    outdir.mkdir(parents=True, exist_ok=True)
     clips = export_clips(video, rallies, str(outdir / "clips"),
                          pre_s=params.pre_roll_s, post_s=params.post_roll_s)
     if not args.no_reel and clips:
