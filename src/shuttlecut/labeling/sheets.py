@@ -13,7 +13,7 @@ def make_contact_sheets(video: str, outdir: str, step_s: float = 2.0,
                         cols: int = 5, rows: int = 6) -> list[str]:
     """每张 sheet 含 cols*rows 格(默认 60s),左上到右下按时间排列。"""
     meta = probe(video)
-    work = Path(outdir) / "_frames"
+    work = Path("temp") / "label" / Path(video).stem / "_sheet_frames"
     frames = extract_frames(video, str(work), fps=1.0 / step_s, width=480)
     per = cols * rows
     sheets: list[str] = []
@@ -40,7 +40,7 @@ def make_contact_sheets(video: str, outdir: str, step_s: float = 2.0,
 def make_dense_strip(video: str, t0: float, t1: float, outpath: str,
                      step_s: float = 0.2) -> str:
     """[t0,t1] 每 step_s 一帧,2 行网格,时间戳到 0.1s。"""
-    work = Path(outpath).parent / f"_strip_{t0:.0f}_{t1:.0f}"
+    work = Path("temp") / "label" / Path(video).stem / f"_strip_{t0:.0f}_{t1:.0f}"
     frames = extract_frames(video, str(work), fps=1.0 / step_s, width=480,
                             t_start=t0, t_end=t1)
     cols = math.ceil(len(frames) / 2) or 1
