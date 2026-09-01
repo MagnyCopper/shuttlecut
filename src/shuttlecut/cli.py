@@ -27,7 +27,11 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--no-audio-refine", action="store_true")
     pr.add_argument("--no-reel", action="store_true")
 
-    sub.add_parser("label", help="真值标注辅助工具")
+    lb = sub.add_parser("label", help="真值标注辅助工具")
+    lb.add_argument("video")
+    lb.add_argument("--sheets", metavar="OUTDIR", default=None)
+    lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"), default=None)
+    lb.add_argument("--out", default=None, help="保存真值 JSON 路径")
     ev = sub.add_parser("eval", help="对比检测结果与真值")
     ev.add_argument("rallies_json")
     ev.add_argument("--gt", required=True)
@@ -101,6 +105,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "process":
         for video in args.videos:
             process_one(video, args.out, args)
+        return 0
+    if args.cmd == "label":
+        from shuttlecut.labeling.gt import save_gt
+        from shuttlecut.labeling.sheets import make_contact_sheets, make_dense_strip
+        if args.sheets:
+            files = make_contact_sheets(args.video, args.sheets)
+            print(f"生成 {len(files)} 张接触表 → {args.sheets}")
+        if args.strip:
+            t0, t1 = args.strip
+            make_dense_strip(args.video, t0, t1,
+                             f"temp/label/{Path(args.video).stem}/strip_{t0:.0f}_{t1:.0f}.jpg")
+            print(f"生成密集帧条 [{t0},{t1}]s")
+        if args.out:
+            rallies = json.loads(Path(f"temp/label/{Path(args.video).stem}/draft.json").read_text())
+            save_gt(args.out, Path(args.video).stem, rallies)
+            print(f"真值已保存 → {args.out}")
         return 0
     print("该子命令在后续任务实现")
     return 0
