@@ -48,3 +48,12 @@ def test_smooth_constant_series_unchanged():
     s = EnergySeries([0.0, 0.2, 0.4], [5.0, 5.0, 5.0])
     sm = smooth(s, window_s=0.4, fps=5)
     assert sm.values == [5.0, 5.0, 5.0]
+
+
+def test_smooth_edge_padding_behavior():
+    # k=3(fps=5, window_s=0.6 取整)时边缘用 edge 填充:[1,2,3] → [4/3, 2.0, 8/3]
+    s = EnergySeries([0.0, 0.2, 0.4], [1.0, 2.0, 3.0])
+    sm = smooth(s, window_s=0.6, fps=5)
+    assert abs(sm.values[0] - 4 / 3) < 1e-9
+    assert abs(sm.values[1] - 2.0) < 1e-9
+    assert abs(sm.values[2] - 8 / 3) < 1e-9
