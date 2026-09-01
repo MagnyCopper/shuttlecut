@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shuttlecut"
+version = "0.1.0"
+description = "Badminton rally auto-clipping CLI"
+requires-python = ">=3.12"
+dependencies = [
+    "ultralytics>=8.4",
+    "librosa>=1.0",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+]
+
+[project.scripts]
+shuttlecut = "shuttlecut.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shuttlecut"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
