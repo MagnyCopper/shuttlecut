@@ -20,6 +20,14 @@ def test_extract_frames_window(synth_video, tmp_path):
     assert 15 <= len(frames) <= 25
 
 
+def test_extract_frames_clears_previous_frames(synth_video, tmp_path):
+    outdir = str(tmp_path / "shared")
+    extract_frames(synth_video, outdir, fps=5.0, width=1280, t_start=0.0, t_end=6.0)
+    frames = extract_frames(synth_video, outdir, fps=5.0, width=1280,
+                            t_start=10.0, t_end=12.0)
+    assert 5 <= len(frames) <= 15
+
+
 def test_extract_audio(synth_video, tmp_path):
     wav = extract_audio(synth_video, str(tmp_path / "a.wav"))
     import soundfile as sf

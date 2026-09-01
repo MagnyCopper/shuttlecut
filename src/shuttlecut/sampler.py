@@ -36,6 +36,8 @@ def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
                    t_start: float | None = None, t_end: float | None = None) -> list[str]:
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
+    for frame in out.glob("frame_*.jpg"):
+        frame.unlink()
     cmd = ["ffmpeg", "-loglevel", "error"]
     if t_start is not None:
         cmd += ["-ss", str(t_start)]
