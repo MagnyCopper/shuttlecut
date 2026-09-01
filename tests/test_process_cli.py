@@ -12,6 +12,10 @@ def test_process_end_to_end(synth_video, tmp_path, capsys):
     data = json.loads((out / "rallies.json").read_text())
     assert data["video"] == "synth"
     assert isinstance(data["rallies"], list)  # testsrc 无真实回合,允许空
+    # 自动 ROI 路径:testsrc 无人 → auto_roi 空输入返回全画面,roi.txt 与 params 一致
+    roi_content = [float(v) for v in (out / "roi.txt").read_text().split(",")]
+    assert roi_content == [0.0, 0.0, 1280.0, 720.0]
+    assert data["params"]["roi"] == roi_content
     assert "[summary]" in capsys.readouterr().out
 
 
