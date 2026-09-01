@@ -8,8 +8,8 @@ def test_export_clips_duration(synth_video, tmp_path):
     clips = export_clips(synth_video, rallies, str(tmp_path / "clips"))
     assert len(clips) == 2
     m = probe(clips[0])
-    # 期望 (9+2) - max(0, 3-1.5) = 8.5s,容差 0.5
-    assert abs(m.duration_s - 8.5) < 0.5
+    # 期望 (9+2) - max(0, 3-1.5) = 9.5s,容差 0.5
+    assert abs(m.duration_s - 9.5) < 0.5
 
 
 def test_export_clip_head_clamped(synth_video, tmp_path):
