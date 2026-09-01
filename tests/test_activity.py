@@ -44,6 +44,10 @@ def test_auto_roi_bounds():
     assert 0 <= x < x + w <= 1280 and 0 <= y < y + h <= H
 
 
+def test_auto_roi_empty_returns_full_frame():
+    assert auto_roi([], 1280, H) == (0.0, 0.0, 1280.0, H)
+
+
 def test_smooth_constant_series_unchanged():
     s = EnergySeries([0.0, 0.2, 0.4], [5.0, 5.0, 5.0])
     sm = smooth(s, window_s=0.4, fps=5)

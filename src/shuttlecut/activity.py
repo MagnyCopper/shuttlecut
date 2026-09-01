@@ -27,6 +27,8 @@ def _large_persons(row: FramePersons, frame_h: float, min_h_ratio: float,
 def auto_roi(rows: list[FramePersons], frame_w: float, frame_h: float,
              min_h_ratio: float = 0.12) -> tuple[float, float, float, float]:
     pts = np.array([pt for r in rows for pt in _large_persons(r, frame_h, min_h_ratio, None)])
+    if len(pts) == 0:
+        return (0.0, 0.0, float(frame_w), float(frame_h))
     x0, y0 = np.percentile(pts[:, 0], 5), np.percentile(pts[:, 1], 5)
     x1, y1 = np.percentile(pts[:, 0], 95), np.percentile(pts[:, 1], 95)
     return (float(x0), float(y0), float(x1 - x0), float(y1 - y0))
