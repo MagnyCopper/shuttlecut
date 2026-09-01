@@ -26,3 +26,4 @@ build/
 *.log
 .env
 .env.*
+.superpowers/
