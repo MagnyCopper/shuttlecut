@@ -69,16 +69,16 @@ def test_unusable_long_split_terminates_without_recursion_error():
 
 def test_split_peaks_are_recomputed_for_each_subsegment():
     def lvl(t):
-        if 1.0 <= t < 130.0:
+        if 5.0 <= t < 125.0:
             return 10.0
-        if 130.0 <= t < 259.0:
-            return 20.0
+        if 125.0 <= t < 185.0:
+            return 12.0
         return 1.0
 
-    rallies = segment(series_from(lvl, 260), SegParams(hi_q=0.3, lo_q=0.001))
+    rallies = segment(series_from(lvl, 300), SegParams())
     assert len(rallies) >= 2
     assert rallies[0].motion_peak == 10.0
-    assert any(r.motion_peak == 20.0 for r in rallies[1:])
+    assert any(r.motion_peak == 12.0 for r in rallies[1:])
 
 
 def test_confidence_is_zero_at_lo_and_one_at_hi():
