@@ -1,0 +1,34 @@
+import subprocess
+from pathlib import Path
+
+from shuttlecut.segmenter import Rally
+
+
+def export_clips(video: str, rallies: list[Rally], out_dir: str,
+                 pre_s: float = 1.5, post_s: float = 2.0) -> list[str]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    clips: list[str] = []
+    for i, r in enumerate(rallies, start=1):
+        ss = max(0.0, r.start - pre_s)
+        to = r.end + post_s
+        dest = out / f"rally_{i:03d}.mp4"
+        subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-ss", f"{ss:.3f}", "-to", f"{to:.3f}",
+             "-i", video, "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+             "-c:a", "aac", "-movflags", "+faststart", str(dest)],
+            check=True,
+        )
+        clips.append(str(dest))
+    return clips
+
+
+def export_reel(clips: list[str], out_path: str) -> str:
+    lst = Path(out_path).with_suffix(".txt")
+    lst.write_text("\n".join(f"file '{c}'" for c in clips))
+    subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-f", "concat", "-safe", "0",
+         "-i", str(lst), "-c", "copy", out_path],
+        check=True,
+    )
+    return out_path
