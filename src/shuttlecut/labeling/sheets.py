@@ -16,6 +16,7 @@ def make_contact_sheets(video: str, outdir: str, step_s: float = 2.0,
     work = Path("temp") / "label" / Path(video).stem / "_sheet_frames"
     frames = extract_frames(video, str(work), fps=1.0 / step_s, width=480)
     per = cols * rows
+    Path(outdir).mkdir(parents=True, exist_ok=True)
     sheets: list[str] = []
     for si in range(math.ceil(len(frames) / per)):
         chunk = frames[si * per : (si + 1) * per]
