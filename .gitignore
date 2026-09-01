@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Local tooling
+.codegraph
+
+# Python venv (project-local)
+.venv/
+
+# Model weights (downloaded, not committed)
+models/
+
+# Project temp (never commit)
+temp/
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Dependencies & build (按项目技术栈补充)
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.*
