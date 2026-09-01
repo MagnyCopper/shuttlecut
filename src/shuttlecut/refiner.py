@@ -23,9 +23,7 @@ def audio_transients(wav: str, z_thresh: float = 2.0, min_gap_s: float = 0.3,
     strengths = env[frames]
     z = (strengths - env.mean()) / (env.std() + 1e-9)
     picked: list[Transient] = []
-    for t, zi in zip(onsets, z):
-        if t < min_gap_s:
-            continue
+    for t, zi in sorted(zip(onsets, z), key=lambda item: item[0]):
         if zi < z_thresh:
             continue
         if picked and t - picked[-1].t < min_gap_s:
@@ -46,7 +44,7 @@ def refine(rallies: list[Rally], transients: list[Transient],
         cands = [tr for tr in transients if lo <= tr.t <= hi]
         new_start = (cands[-1].t - 0.2) if cands else r.start
         new_start = max(new_start, floor)
-        hits = sum(1 for t in times if r.start <= t <= r.end)
+        hits = sum(1 for t in times if new_start <= t <= r.end)
         out.append(Rally(start=new_start, end=r.end, motion_peak=r.motion_peak,
                          confidence=r.confidence, hits=hits))
     return out
