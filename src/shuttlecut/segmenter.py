@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -65,25 +65,33 @@ def _split_long(seg: tuple[float, float, float], max_rally_s: float,
     # 在中点附近找能量最低的切分点
     mid = (s0 + s1) / 2
     mask = (np.array(times) >= mid - 5) & (np.array(times) <= mid + 5)
-    idx = np.where(mask)[0]
+    idx = np.where(mask & (np.array(times) > s0) & (np.array(times) < s1))[0]
+    if not len(idx):
+        return [seg]
     cut_t = float(times[idx[np.argmin(values[idx])]])
-    left, right = (s0, cut_t, peak), (cut_t, s1, peak)
+    if not s0 < cut_t < s1:
+        return [seg]
+    left_mask = (np.array(times) >= s0) & (np.array(times) <= cut_t)
+    right_mask = (np.array(times) >= cut_t) & (np.array(times) <= s1)
+    left, right = ((s0, cut_t, float(np.max(values[left_mask]))),
+                   (cut_t, s1, float(np.max(values[right_mask]))))
+    if left[1] - left[0] >= s1 - s0 or right[1] - right[0] >= s1 - s0:
+        return [seg]
     return _split_long(left, max_rally_s, values, times) + _split_long(right, max_rally_s, values, times)
 
 
 def segment(series: EnergySeries, params: SegParams) -> list[Rally]:
     values = np.array(series.values)
-    hi, lo = float(np.percentile(values, params.hi_q * 100)), float(np.percentile(values, params.lo_q * 100))
-    if hi <= lo and float(np.min(values)) == float(np.max(values)):
+    if not len(values) or not series.times:
         return []
+    hi, lo = float(np.percentile(values, params.hi_q * 100)), float(np.percentile(values, params.lo_q * 100))
     if hi <= lo:
-        hi, lo = float(np.max(values)), float(np.min(values))
+        return []
     segs = _raw_segments(values, series.times, hi, lo)
     segs = [s for s in segs if s[1] - s[0] >= params.min_rally_s]
     segs = _merge_by_min_idle(segs, params.min_idle_s)
     segs = [s for s in segs if s[1] - s[0] >= params.min_rally_s]
     segs = [p for s in segs for p in _split_long(s, params.max_rally_s, values, series.times)]
-    med = float(np.median(values))
     return [Rally(start=s, end=e, motion_peak=p,
                   confidence=float(np.clip((p - lo) / max(hi - lo, 1e-9), 0.0, 1.0))
                   )
