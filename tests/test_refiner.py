@@ -33,16 +33,19 @@ def test_min_gap_dedup(tmp_path):
     assert sum(abs(tr.t - 3.04) < 0.15 for tr in audio_transients(wav)) == 1
 
 
-@pytest.mark.parametrize("onsets", [[0.2, 0.1], [0.1, 0.2]])
-def test_min_gap_dedup_sorts_and_keeps_stronger(monkeypatch, onsets):
+@pytest.mark.parametrize(
+    ("onsets", "env", "strongest_t"),
+    [([0.2, 0.1], [1.0, 2.0, 4.0], 0.1),
+     ([0.1, 0.2], [1.0, 2.0, 4.0], 0.2)],
+)
+def test_min_gap_dedup_sorts_and_keeps_stronger(monkeypatch, onsets, env, strongest_t):
     monkeypatch.setattr("shuttlecut.refiner.librosa.load", lambda *args, **kwargs: (np.zeros(3), 16000))
-    monkeypatch.setattr("shuttlecut.refiner.librosa.onset.onset_strength", lambda **kwargs: np.array([1.0, 4.0, 2.0]))
+    monkeypatch.setattr("shuttlecut.refiner.librosa.onset.onset_strength", lambda **kwargs: np.array(env))
     monkeypatch.setattr("shuttlecut.refiner.librosa.onset.onset_detect", lambda **kwargs: np.array(onsets))
     monkeypatch.setattr("shuttlecut.refiner.librosa.time_to_frames", lambda times, **kwargs: np.array([1, 2]))
 
     result = audio_transients("unused", z_thresh=-10.0)
 
-    strongest_t = onsets[0]
     assert len(result) == 1
     assert result[0].t == strongest_t
     assert result[0].z == pytest.approx((4.0 - np.mean([1.0, 4.0, 2.0])) /
