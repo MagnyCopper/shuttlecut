@@ -633,10 +633,11 @@ def test_short_blip_merged_not_rally():
 
 
 def test_min_idle_merge():
-    # 两个 8s 高能段间隔 1s(< min_idle 2.5)应合并为一个回合
+    # 两个 8s 高能段间隔 1s(< min_idle 2.5)应合并;总时长 30s 使高能占比 53%,
+    # 默认 P30/P60 分位可分离(高占比>70% 会让 P30 落入高块触发 hi<=lo 保护)
     def lvl(t):
         return 10.0 if (t < 8 or 9 <= t < 17) else 1.0
-    s = series_from(lvl, 22)
+    s = series_from(lvl, 30)
     rallies = segment(s, SegParams())
     assert len(rallies) == 1
     assert rallies[0].end - rallies[0].start > 15
@@ -650,8 +651,9 @@ def test_short_rally_dropped():
 
 
 def test_max_rally_split():
+    # 180s 连续高能(60% 占比,首尾留间歇),超过 max_rally 120s 应回切分
     def lvl(t):
-        return 10.0 if 5.0 <= t < 295.0 else 1.0  # 290s 连续高能量(首尾留间歇避免 hi<=lo)
+        return 10.0 if 5.0 <= t < 185.0 else 1.0
     s = series_from(lvl, 300)
     rallies = segment(s, SegParams())
     assert all(r.end - r.start <= 120.0 + 5.0 for r in rallies)
