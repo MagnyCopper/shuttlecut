@@ -33,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--no-audio-refine", action="store_true")
     pr.add_argument("--no-reel", action="store_true")
     pr.add_argument("--pose", action="store_true", help="姿态管线(RTMPose+球场标定)")
+    pr.add_argument("--flow", action="store_true", help="光流管线(15fps 残差动作事件)")
 
     cl = sub.add_parser("calibrate", help="人工点选球场标定")
     cl.add_argument("video")
@@ -77,6 +78,8 @@ def process_one(video: str, out_root: str, args) -> int:
     cache_path = outdir / "cache.json"
     cache_key = {"video": video, "mtime": os.path.getmtime(video),
                  "fps": 5.0, "width": 1280}
+    if args.flow:
+        return _process_flow(video, meta, args, outdir, work, cache_path, cache_key)
     if args.pose:
         return _process_pose(video, meta, args, outdir, work, cache_path, cache_key)
     cached = persons_path.exists() and cache_path.exists() and \
@@ -176,6 +179,61 @@ def _process_pose(video: str, meta: VideoMeta, args, outdir: Path, work: Path,
     (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     total = sum(r.end - r.start for r in rallies)
     print(f"[summary] {stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
+          f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
+    return 0
+
+
+def _process_flow(video: str, meta: VideoMeta, args, outdir: Path, work: Path,
+                  cache_path: Path, cache_key: dict) -> int:
+    """--flow 管线:15fps 光流残差→事件→ARMED→精修→导出。"""
+    from shuttlecut.flowpipe import load_flow, run_flow
+
+    flow_path = outdir / "flow.jsonl"
+    flow_key = cache_key | {"mode": "flow", "fps": 15.0, "width": 960}
+    cached = flow_path.exists() and cache_path.exists() and \
+        json.loads(cache_path.read_text()) == flow_key
+    if cached:
+        rows = load_flow(str(flow_path))
+        print(f"[cache] 复用光流缓存 {flow_path}")
+    else:
+        rows = run_flow(video, str(flow_path), fps=15.0, width=960, device=args.device)
+        cache_path.write_text(json.dumps(flow_key))
+
+    # 适配 segment_armed 输入:wrist_peak 字段复用为光流残差(内部做 median/MAD 归一);
+    # n_by_side 用在场大人数克隘(≥2 人时两侧各计 min(n,2),门控等价于"场上至少双人")
+    features = [
+        {"t": r["t"], "n_by_side": (min(r["n_persons"], 2),) * 2 if r["n_persons"] else (0, 0),
+         "wrist_peak": r["residual"], "any_ready": True}
+        for r in rows
+    ]
+
+    transients: list[Transient] = []
+    if not args.no_audio_refine:
+        try:
+            wav = extract_audio(video, str(work / "audio.wav"))
+            transients = audio_transients(wav)
+        except Exception as e:
+            print(f"[warn] 音频精修跳过: {e}")
+    params = ArmedParams()
+    rallies: list[Rally] = segment_armed(features, [tr.t for tr in transients], params)
+    if transients:
+        rallies = refine(rallies, transients)
+
+    seg = SegParams()
+    clips = export_clips(video, rallies, str(outdir / "clips"),
+                         pre_s=seg.pre_roll_s, post_s=seg.post_roll_s)
+    if not args.no_reel and clips:
+        export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
+
+    payload = {
+        "video": Path(video).stem,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "params": {"mode": "flow"} | vars(params),
+        "rallies": _rally_rows(rallies),
+    }
+    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    total = sum(r.end - r.start for r in rallies)
+    print(f"[summary] {Path(video).stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
           f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
     return 0
 
