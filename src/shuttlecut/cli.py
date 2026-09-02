@@ -1,14 +1,24 @@
 import argparse
 import json
+import os
+import subprocess
+from datetime import datetime
+from pathlib import Path
+import json
+import os
 from datetime import datetime
 from pathlib import Path
 
 from shuttlecut import __version__
 from shuttlecut.activity import auto_roi, motion_energy, smooth
+from shuttlecut.armed import ArmedParams, segment_armed
+from shuttlecut.court import load_cal, pick_court
 from shuttlecut.detector import detect_persons, load_persons_jsonl
 from shuttlecut.exporter import export_clips, export_reel
-from shuttlecut.refiner import audio_transients, refine
-from shuttlecut.sampler import extract_audio, extract_frames, probe
+from shuttlecut.posefeat import frame_features
+from shuttlecut.poses import estimate_poses, load_poses_jsonl
+from shuttlecut.refiner import Transient, audio_transients, refine
+from shuttlecut.sampler import VideoMeta, extract_audio, extract_frames, probe
 from shuttlecut.segmenter import Rally, SegParams, segment
 
 
@@ -26,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--device", default="auto", choices=["auto", "mps", "cpu"])
     pr.add_argument("--no-audio-refine", action="store_true")
     pr.add_argument("--no-reel", action="store_true")
+    pr.add_argument("--pose", action="store_true", help="姿态管线(RTMPose+球场标定)")
+
+    cl = sub.add_parser("calibrate", help="人工点选球场标定")
+    cl.add_argument("video")
+    cl.add_argument("--frame", type=float, default=500.0, help="抽帧时刻(秒)")
+    cl.add_argument("--out", default="outputs")
 
     lb = sub.add_parser("label", help="真值标注辅助工具")
     lb.add_argument("video")
@@ -46,17 +62,27 @@ def _parse_roi(s: str | None):
     return (x, y, w, h)
 
 
-def process_one(video: str, out_root: str, args) -> int:
-    import os
+def _rally_rows(rallies: list[Rally]) -> list[dict]:
+    return [
+        {"id": i, "start_s": round(r.start, 2), "end_s": round(r.end, 2),
+         "duration_s": round(r.end - r.start, 2), "hits": r.hits,
+         "motion_peak": round(r.motion_peak, 2), "confidence": round(r.confidence, 3)}
+        for i, r in enumerate(rallies, start=1)
+    ]
 
+
+def process_one(video: str, out_root: str, args) -> int:
     meta = probe(video)
     stem = Path(video).stem
     outdir = Path(out_root) / stem
     work = Path("temp/work") / stem
+    outdir.mkdir(parents=True, exist_ok=True)
     persons_path = outdir / "persons.jsonl"
     cache_path = outdir / "cache.json"
     cache_key = {"video": video, "mtime": os.path.getmtime(video),
                  "fps": 5.0, "width": 1280}
+    if args.pose:
+        return _process_pose(video, meta, args, outdir, work, cache_path, cache_key)
     cached = persons_path.exists() and cache_path.exists() and \
         json.loads(cache_path.read_text()) == cache_key
     if cached:
@@ -67,14 +93,12 @@ def process_one(video: str, out_root: str, args) -> int:
         rows = detect_persons(frames, frame_fps=5.0, device=args.device,
                               out_jsonl=str(persons_path))
         pmeta, rows = load_persons_jsonl(str(persons_path))
-        outdir.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache_key))
     frame_h = float(pmeta["frame_h"])
 
     roi = _parse_roi(args.roi)
     if roi is None:
         roi = auto_roi(rows, float(pmeta["frame_w"]), frame_h)
-    outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "roi.txt").write_text(",".join(f"{v:g}" for v in roi))
     energy = smooth(motion_energy(rows, frame_h, roi=roi), window_s=2.0, fps=5.0)
 
@@ -97,12 +121,61 @@ def process_one(video: str, out_root: str, args) -> int:
         "video": stem,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "params": vars(params) | {"roi": roi},
-        "rallies": [
-            {"id": i, "start_s": round(r.start, 2), "end_s": round(r.end, 2),
-             "duration_s": round(r.end - r.start, 2), "hits": r.hits,
-             "motion_peak": round(r.motion_peak, 2), "confidence": round(r.confidence, 3)}
-            for i, r in enumerate(rallies, start=1)
-        ],
+        "rallies": _rally_rows(rallies),
+    }
+    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    total = sum(r.end - r.start for r in rallies)
+    print(f"[summary] {stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
+          f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
+    return 0
+
+
+def _process_pose(video: str, meta: VideoMeta, args, outdir: Path, work: Path,
+                  cache_path: Path, cache_key: dict) -> int:
+    """--pose 管线:帧→poses(缓存)→标定→特征→ARMED→精修→导出。"""
+    stem = Path(video).stem
+    court_path = outdir / "court.json"
+    if not court_path.exists():
+        print(f"缺少球场标定 {court_path},请先运行 shuttlecut calibrate <video>")
+        return 1
+    cal = load_cal(court_path)
+
+    poses_path = outdir / "poses.jsonl"
+    pose_key = cache_key | {"mode": "pose"}
+    cached = poses_path.exists() and cache_path.exists() and \
+        json.loads(cache_path.read_text()) == pose_key
+    if cached:
+        poses = load_poses_jsonl(str(poses_path))
+        print(f"[cache] 复用姿态缓存 {poses_path}")
+    else:
+        frames = extract_frames(video, str(work / "frames"), fps=5.0, width=1280)
+        poses = estimate_poses(frames, out_jsonl=str(poses_path))
+        cache_path.write_text(json.dumps(pose_key))
+
+    features = frame_features(poses, cal)
+    transients: list[Transient] = []
+    if not args.no_audio_refine:
+        try:
+            wav = extract_audio(video, str(work / "audio.wav"))
+            transients = audio_transients(wav)
+        except Exception as e:  # 无音轨/解码失败 → 降级纯视觉
+            print(f"[warn] 音频精修跳过: {e}")
+    params = ArmedParams()
+    rallies: list[Rally] = segment_armed(features, [tr.t for tr in transients], params)
+    if transients:
+        rallies = refine(rallies, transients)
+
+    seg = SegParams()
+    clips = export_clips(video, rallies, str(outdir / "clips"),
+                         pre_s=seg.pre_roll_s, post_s=seg.post_roll_s)
+    if not args.no_reel and clips:
+        export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
+
+    payload = {
+        "video": stem,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "params": {"mode": "pose"} | vars(params),
+        "rallies": _rally_rows(rallies),
     }
     (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     total = sum(r.end - r.start for r in rallies)
@@ -118,7 +191,29 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.cmd == "process":
         for video in args.videos:
-            process_one(video, args.out, args)
+            if process_one(video, args.out, args) != 0:
+                return 1
+        return 0
+    if args.cmd == "calibrate":
+        stem = Path(args.video).stem
+        meta = probe(args.video)
+        if args.frame >= meta.duration_s:
+            print(f"[error] 无法在 {args.frame:g}s 处抽帧(视频时长仅 {meta.duration_s:.0f}s)")
+            return 1
+        try:
+            frames = extract_frames(args.video, str(Path("temp/calib") / stem),
+                                    fps=5.0, width=1280,
+                                    t_start=args.frame, t_end=args.frame + 0.2)
+        except subprocess.CalledProcessError:
+            print(f"[error] 无法在 {args.frame:g}s 处抽帧")
+            return 1
+        if not frames:
+            print(f"[error] 无法在 {args.frame:g}s 处抽帧(视频可能更短)")
+            return 1
+        outdir = Path(args.out) / stem
+        outdir.mkdir(parents=True, exist_ok=True)
+        pick_court(frames[0], str(outdir / "court.json"))
+        print(f"标定已保存 → {outdir / 'court.json'}")
         return 0
     if args.cmd == "label":
         from shuttlecut.labeling.gt import save_gt
