@@ -34,16 +34,19 @@ def _mean_point(kps: np.ndarray, indices: tuple[int, ...]) -> tuple[float, float
     return (float(mean[0]), float(mean[1]))
 
 
+def _standing_point(p: PersonKps) -> tuple[float, float] | None:
+    return _mean_point(p.kps, _ANKLES) or _mean_point(p.kps, _HIPS)
+
+
 def court_players(
-    poses: list[FramePose], cal: CourtCal, frame_wh: tuple[int, int]
+    poses: list[FramePose], cal: CourtCal
 ) -> list[FramePlayers]:
     """Select up to four in-court people, preferring those nearest the net."""
-    del frame_wh
     result: list[FramePlayers] = []
     for frame in poses:
         candidates: list[tuple[float, PersonKps, int]] = []
         for person in frame.persons:
-            foot = _mean_point(person.kps, _ANKLES) or _mean_point(person.kps, _HIPS)
+            foot = _standing_point(person)
             if foot is None:
                 continue
             court_x, court_y = to_court_xy(cal, *foot)
@@ -76,17 +79,37 @@ def stance_ready(p: PersonKps) -> bool:
 
 
 def frame_features(
-    poses: list[FramePose], cal: CourtCal, frame_wh: tuple[int, int]
+    poses: list[FramePose], cal: CourtCal
 ) -> list[FrameFeatures]:
     """Calculate occupancy, peak arm speed, and readiness for each frame."""
-    selected = court_players(poses, cal, frame_wh)
+    selected = court_players(poses, cal)
     features: list[FrameFeatures] = []
-    previous: list[PersonKps] = []
+    previous: list[tuple[tuple[float, float], PersonKps]] = []
     for index, frame in enumerate(selected):
         by_side = (sum(side == 0 for _, side in frame.players), sum(side == 1 for _, side in frame.players))
         peak = 0.0
         if index > 0:
-            peak = max((wrist_speed(person, old) for (person, _), old in zip(frame.players, previous)), default=0.0)
-        previous = [person for person, _ in frame.players]
+            speeds: list[float] = []
+            used: set[int] = set()
+            for person, _ in frame.players:
+                point = _standing_point(person)
+                if point is None:
+                    continue
+                matches = [
+                    (float(np.linalg.norm(np.asarray(point) - np.asarray(old_point))), old_person, old_index)
+                    for old_index, (old_point, old_person) in enumerate(previous)
+                    if old_index not in used
+                ]
+                if matches:
+                    distance, old_person, old_index = min(matches, key=lambda match: match[0])
+                    if distance <= 150:
+                        used.add(old_index)
+                        speeds.append(wrist_speed(person, old_person))
+            peak = max(speeds, default=0.0)
+        previous = []
+        for person, _ in frame.players:
+            point = _standing_point(person)
+            if point is not None:
+                previous.append((point, person))
         features.append({"t": frame.t, "n_by_side": by_side, "wrist_peak": peak, "any_ready": any(stance_ready(person) for person, _ in frame.players)})
     return features
