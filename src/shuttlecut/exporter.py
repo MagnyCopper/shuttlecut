@@ -44,7 +44,8 @@ def _concat_line(path: str) -> str:
 
 def export_reel(clips: list[str], out_path: str) -> str:
     lst = Path(out_path).with_suffix(".txt")
-    lst.write_text("\n".join(_concat_line(c) for c in clips))
+    # concat 条目用绝对路径:ffmpeg 相对*列表文件目录*解析相对路径,会加倍
+    lst.write_text("\n".join(_concat_line(str(Path(c).resolve())) for c in clips))
     subprocess.run(
         ["ffmpeg", "-loglevel", "error", "-f", "concat", "-safe", "0",
          "-i", str(lst), "-c", "copy", out_path],
