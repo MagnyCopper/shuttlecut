@@ -102,3 +102,28 @@ def test_court_players_applies_inclusive_x_boundary() -> None:
     outside = _person(*points[1])
     result = court_players([FramePose(0.0, [inside, outside])], cal)
     assert len(result[0].players) == 1
+
+
+def test_frame_features_skips_unmatched_far_person_between_frames() -> None:
+    # 上一帧在 A 处,当前帧同一个人瞬移 >150px → 未匹配,腕速不计入峰值
+    cal = _cal()
+    near = FramePose(0.0, [_person(650, 300)])
+    far = FramePose(0.2, [_person(650, 300 + 180, wrist=200)])
+    feats = frame_features([near, far], cal)
+    assert feats[1]["wrist_peak"] == 0.0
+
+
+def test_court_players_applies_inclusive_y_boundary() -> None:
+    cal = _cal()
+    # 直接构造映射到 Y=-0.10 与 Y=13.50(界内)及 Y=-0.30、Y=13.80(界外)的立足点
+    import cv2 as _cv2
+    target = np.asarray(
+        [(1.5, -0.10), (1.5, 13.50), (1.5, -0.30), (1.5, 13.80)], dtype=np.float32
+    )
+    std = np.asarray([(0, 13.4), (3.05, 13.4), (3.05, 0), (0, 0)], dtype=np.float32)
+    image = np.asarray([(200, 200), (1000, 200), (1200, 600), (100, 600)], dtype=np.float32)
+    h = _cv2.getPerspectiveTransform(std, image)
+    pts = _cv2.perspectiveTransform(target[None], h)[0]
+    poses = FramePose(0.0, [_person(float(x), float(y)) for x, y in pts])
+    result = court_players([poses], cal)
+    assert len(result[0].players) == 2  # 仅 -0.10 与 13.50 保留
