@@ -30,7 +30,7 @@
 ### Task 17: 球场标定(人工点选+单应+缓存)
 
 **Files:** Create `src/shuttlecut/court.py`、`tests/test_court.py`
-**Interfaces:** `pick_court(frame_path: str, out_path: str) -> CourtCal`(matplotlib 交互点选 4 角[左上,右上,右下,左下]+网线中点,共 5 点;窗口标题提示顺序);`CourtCal(corners: list[tuple], net_mid: tuple)`;`save/load(cal, path)`(json);`to_court_xy(cal, x, y) -> tuple[float, float]`(单应映射到标准半场坐标:0..3.05(宽)×0..13.4(长),以左底角为原点);`net_line(cal) -> callable`(球场坐标中 y=6.7 为网,提供 side_of(cal, x, y) -> 0/1)
+**Interfaces:** `pick_court(frame_path: str, out_path: str) -> CourtCal`(matplotlib 交互点选 4 角[左上,右上,右下,左下]+网线中点,共 5 点;窗口标题提示顺序);`CourtCal(corners: list[tuple], net_mid: tuple)`;`save_cal/load_cal(cal, path)`(json);`to_court_xy(cal, x, y) -> tuple[float, float]`(单应映射到标准半场坐标:0..3.05(宽)×0..13.4(长),以左底角为原点);`net_line(cal) -> callable`(球场坐标中 y=6.7 为网,提供 side_of(cal, x, y) -> 0/1)。`net_mid` 仅作标定质量参考，不参与映射。
 
 - [ ] Step 1: 失败测试:纯几何——用合成 cal(无畸变矩形)验证 to_court_xy 角点映射为 (0,0)(3.05,0)(3.05,13.4)(0,13.4)、side_of 网两侧返回不同;load/save roundtrip
 - [ ] Step 2-4: TDD 实现(单应用 cv2.getPerspectiveTransform,标准坐标 X∈[0,3.05] Y∈[0,13.4])
