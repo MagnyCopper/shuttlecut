@@ -52,7 +52,7 @@ def load_cal(path: str | Path) -> CourtCal:
             corners=[(float(x), float(y)) for x, y in corners],
             net_mid=(float(net_mid[0]), float(net_mid[1])),
         )
-    except (KeyError, TypeError, ValueError, IndexError) as error:
+    except (KeyError, TypeError, ValueError, IndexError, OverflowError) as error:
         raise ValueError("invalid court calibration") from error
 
 
