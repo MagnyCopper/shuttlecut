@@ -41,10 +41,11 @@
 
 **Files:** Create `src/shuttlecut/posefeat.py`、`tests/test_posefeat.py`
 **Interfaces:**
-- `court_players(poses, cal, frame_wh) -> list[FramePlayers]`(踝中点映射入场内 0.15m 缓冲者,按 y 深度取最近网的 2-4 人;FramePlayers(t, players: list[tuple[kps, side])])
+- `court_players(poses, cal) -> list[FramePlayers]`(踝/髋中点映射入场内 0.15m 缓冲者,按 y 深度取最近网的 2-4 人;FramePlayers(t, players: list[tuple[kps, side])])
 - `wrist_speed(poses_seq) -> list[float]`(每人右/左腕(kps 9/10)帧间速度,取帧内最大者,单位 px/s)
 - `stance_ready(player) -> bool`(髋(11,12)低于膝(13,14)连线中点一定比例且踝 y 差 < 阈值 → 屈膝准备;阈值以比例表达避免绝对像素)
-- `frame_features(poses, cal, frame_wh) -> list[dict]`(t, n_by_side, wrist_peak, any_ready)——状态机输入
+- `court_players(poses, cal) -> list[FramePlayers]`(按立足点场内过滤并取离网最近 4 人)
+- `frame_features(poses, cal) -> list[dict]`(t, n_by_side, wrist_peak, any_ready; 跨帧按立足点最近邻匹配)——状态机输入
 
 - [ ] Step 1: 失败测试:合成 PersonKps 构造站位/挥拍/走动三场景,断言 wrist_speed 挥拍>站位、stance_ready 站位 True 走动 False、court_players 场内深度筛选正确
 - [ ] Step 2-4: TDD 实现

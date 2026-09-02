@@ -19,3 +19,10 @@ Implemented `shuttlecut.posefeat` with court-player selection, wrist/elbow speed
 ## Concerns
 
 No functional concerns. LSP diagnostics remain unavailable due to the missing basedpyright installation.
+
+## Task 18 审查修复（2026-09-03）
+
+- 跨帧腕速改为空间最近邻立足点匹配，阈值 150px；移除 `frame_wh` 参数并同步计划接口。
+- 补充换序、五人深度筛选、缺失关键点与场内 X 边界测试。
+- `.venv/bin/python -m pytest tests/test_posefeat.py -v` — 8 passed。
+- `.venv/bin/python -m pytest -q` — 66 passed。
