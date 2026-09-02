@@ -47,15 +47,28 @@ def _parse_roi(s: str | None):
 
 
 def process_one(video: str, out_root: str, args) -> int:
+    import os
+
     meta = probe(video)
     stem = Path(video).stem
     outdir = Path(out_root) / stem
     work = Path("temp/work") / stem
-    frames = extract_frames(video, str(work / "frames"), fps=5.0, width=1280)
     persons_path = outdir / "persons.jsonl"
-    rows = detect_persons(frames, frame_fps=5.0, device=args.device,
-                          out_jsonl=str(persons_path))
-    pmeta, rows = load_persons_jsonl(str(persons_path))
+    cache_path = outdir / "cache.json"
+    cache_key = {"video": video, "mtime": os.path.getmtime(video),
+                 "fps": 5.0, "width": 1280}
+    cached = persons_path.exists() and cache_path.exists() and \
+        json.loads(cache_path.read_text()) == cache_key
+    if cached:
+        pmeta, rows = load_persons_jsonl(str(persons_path))
+        print(f"[cache] 复用检测缓存 {persons_path}")
+    else:
+        frames = extract_frames(video, str(work / "frames"), fps=5.0, width=1280)
+        rows = detect_persons(frames, frame_fps=5.0, device=args.device,
+                              out_jsonl=str(persons_path))
+        pmeta, rows = load_persons_jsonl(str(persons_path))
+        outdir.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cache_key))
     frame_h = float(pmeta["frame_h"])
 
     roi = _parse_roi(args.roi)

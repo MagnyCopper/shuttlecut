@@ -1,15 +1,18 @@
 import subprocess
 from pathlib import Path
 
+from shuttlecut.sampler import hwaccel_decode
 from shuttlecut.segmenter import Rally
 
 
 def _video_encoder() -> list[str]:
-    """优先 VideoToolbox 硬编(4K 切片快 ~10 倍),不可用回退 libx264。"""
+    """优先 VideoToolbox 硬编(4K 切片快),不可用回退 libx264。"""
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"],
                            capture_output=True, text=True, check=True)
     if "h264_videotoolbox" in probe.stdout:
-        return ["-c:v", "h264_videotoolbox", "-b:v", "10M"]
+        # 10bit HEVC 源→8bit 1080p:避免硬编不收 10bit 导致的软转换慢路径
+        return ["-c:v", "h264_videotoolbox", "-b:v", "8M",
+                "-vf", "scale=-2:1080,format=yuv420p"]
     return ["-c:v", "libx264", "-preset", "fast", "-crf", "20"]
 
 
@@ -23,7 +26,8 @@ def export_clips(video: str, rallies: list[Rally], out_dir: str,
         to = r.end + post_s
         dest = out / f"rally_{i:03d}.mp4"
         subprocess.run(
-            ["ffmpeg", "-loglevel", "error", "-ss", f"{ss:.3f}", "-to", f"{to:.3f}",
+            ["ffmpeg", "-loglevel", "error", *hwaccel_decode(),
+             "-ss", f"{ss:.3f}", "-to", f"{to:.3f}",
              "-i", video, *_video_encoder(),
              "-c:a", "aac", "-movflags", "+faststart", str(dest)],
             check=True,

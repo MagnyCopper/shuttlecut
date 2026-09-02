@@ -32,13 +32,20 @@ def probe(path: str) -> VideoMeta:
     )
 
 
+def hwaccel_decode() -> list[str]:
+    """VideoToolbox 硬解加速(4K HEVC);不可用返回空列表。"""
+    probe = subprocess.run(["ffmpeg", "-hide_banner", "-hwaccels"],
+                           capture_output=True, text=True, check=True)
+    return ["-hwaccel", "videotoolbox"] if "videotoolbox" in probe.stdout else []
+
+
 def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
                    t_start: float | None = None, t_end: float | None = None) -> list[str]:
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     for frame in out.glob("frame_*.jpg"):
         frame.unlink()
-    cmd = ["ffmpeg", "-loglevel", "error"]
+    cmd = ["ffmpeg", "-loglevel", "error", *hwaccel_decode()]
     if t_start is not None:
         cmd += ["-ss", str(t_start)]
     if t_end is not None:
@@ -52,7 +59,7 @@ def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
 def extract_audio(video: str, out_wav: str, sr: int = 16000) -> str:
     Path(out_wav).parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-i", video, "-vn", "-ac", "1",
+        ["ffmpeg", "-loglevel", "error", "-i", video, "-vn", "-ac", "1",  # 音频无需硬解
          "-ar", str(sr), out_wav],
         check=True,
     )
