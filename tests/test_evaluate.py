@@ -26,8 +26,17 @@ def test_boundary_shift_still_matches():
     assert len(r.boundary) == 1
 
 
-def test_fragment_classification():
+def test_fragment_classification_for_positive_overlap():
     gt = [(10.0, 30.0)]
-    det = [(10.0, 18.0), (18.5, 26.0)]
-    r = evaluate(det, gt)
-    assert len(r.fragment) + len(r.extra) >= 1
+    det = [(10.2, 17.8), (18.5, 26.0)]
+    r = evaluate(det, gt, tol_s=15.0, overlap=0.3)
+    assert len(r.fragment) == 1
+    assert len(r.extra) == 0
+
+
+def test_non_overlapping_unmatched_detection_is_extra():
+    gt = [(10.0, 30.0)]
+    det = [(10.2, 17.8), (18.5, 26.0), (60.0, 70.0)]
+    r = evaluate(det, gt, tol_s=15.0, overlap=0.3)
+    assert len(r.fragment) == 1
+    assert len(r.extra) == 1

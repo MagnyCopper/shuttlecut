@@ -45,7 +45,7 @@ def evaluate(detected: list[tuple[float, float]], gt: list[tuple[float, float]],
     unmatched = [d for i, d in enumerate(detected) if i not in used]
     extra, fragment = [], []
     for d in unmatched:
-        overlapped = any(_inter(d, g) > 0.5 * (g[1] - g[0]) for _, g, _ in matches)
+        overlapped = any(_inter(d, g) > 0 for _, g, _ in matches)
         (fragment if overlapped else extra).append(d)
     mae = sum(m for _, _, m in matches) / len(matches) if matches else float("nan")
     boundary = [(d, g) for d, g, m in matches if m > mae_report_s]
