@@ -41,7 +41,13 @@ def test_estimate_poses_returns_timed_keypoints_and_roundtrips_jsonl(
             assert isinstance(person["score"], float)
 
     loaded = load_poses_jsonl(str(tmp_path / "poses.jsonl"))
-    assert [pose.t for pose in loaded] == [pose.t for pose in poses]
+    # 完整 roundtrip:数量一致(防 zip 截断)、t/score 逐项相等、kps ndarray 形状与数值一致
+    assert len(loaded) == len(poses)
     for loaded_pose, pose in zip(loaded, poses):
+        assert loaded_pose.t == pose.t
+        assert len(loaded_pose.persons) == len(pose.persons)
         for loaded_person, person in zip(loaded_pose.persons, pose.persons):
+            assert isinstance(loaded_person.kps, np.ndarray)
+            assert loaded_person.kps.shape == (17, 2)
             assert np.array_equal(loaded_person.kps, person.kps)
+            assert loaded_person.score == person.score
