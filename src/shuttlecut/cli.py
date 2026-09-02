@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     ev = sub.add_parser("eval", help="对比检测结果与真值")
     ev.add_argument("rallies_json")
     ev.add_argument("--gt", required=True)
+    ev.add_argument("--record", default=None)
     return p
 
 
@@ -122,5 +123,22 @@ def main(argv: list[str] | None = None) -> int:
             save_gt(args.out, Path(args.video).stem, rallies)
             print(f"真值已保存 → {args.out}")
         return 0
+    if args.cmd == "eval":
+        from shuttlecut.eval.evaluate import evaluate
+        from shuttlecut.labeling.gt import load_gt
+        det = [(r["start_s"], r["end_s"])
+               for r in json.loads(Path(args.rallies_json).read_text())["rallies"]]
+        g = [(r["start_s"], r["end_s"]) for r in load_gt(args.gt)["rallies"]]
+        rep = evaluate(det, g)
+        verdict = "PASS" if rep.recall >= 0.90 and rep.precision >= 0.90 else "FAIL"
+        print(f"recall={rep.recall:.3f} precision={rep.precision:.3f} mae={rep.mae_s:.2f}s "
+              f"({rep.n_det} 检出 / {rep.n_gt} 真值) → {verdict}")
+        print(f"missed={len(rep.missed)} extra={len(rep.extra)} "
+              f"fragment={len(rep.fragment)} boundary={len(rep.boundary)}")
+        if args.record:
+            with open(args.record, "a") as f:
+                f.write(f"| {datetime.now().isoformat(timespec='seconds')} | {args.rallies_json} | "
+                        f"{rep.recall:.3f} | {rep.precision:.3f} | {rep.mae_s:.2f} | {verdict} |\n")
+        return 0 if verdict == "PASS" else 2
     print("该子命令在后续任务实现")
     return 0
