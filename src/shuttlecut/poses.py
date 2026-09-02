@@ -3,14 +3,17 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-os.environ.setdefault("TORCH_HOME", "models/rtmlib")
+import numpy as np
+
+# Project policy: keep model downloads inside the project, even if externally configured.
+os.environ["TORCH_HOME"] = str(Path(__file__).resolve().parents[2] / "models" / "rtmlib")
 
 import cv2
 
 
 @dataclass(frozen=True, slots=True)
 class PersonKps:
-    kps: list[list[float]]
+    kps: np.ndarray
     score: float
 
 
@@ -41,7 +44,7 @@ def estimate_poses(
         keypoints, scores = _BODY(image)
         persons = [
             PersonKps(
-                kps=keypoints[person_index].tolist(),
+                kps=keypoints[person_index],
                 score=float(scores[person_index].mean()),
             )
             for person_index in range(len(keypoints))
@@ -57,7 +60,7 @@ def estimate_poses(
                     {
                         "t": row.t,
                         "persons": [
-                            {"kps": person.kps, "score": person.score}
+                            {"kps": person.kps.tolist(), "score": person.score}
                             for person in row.persons
                         ],
                     },
@@ -78,7 +81,7 @@ def load_poses_jsonl(path: str) -> list[FramePose]:
                     t=float(data["t"]),
                     persons=[
                         PersonKps(
-                            kps=person["kps"],
+                            kps=np.asarray(person["kps"], dtype=float),
                             score=float(person["score"]),
                         )
                         for person in data["persons"]
