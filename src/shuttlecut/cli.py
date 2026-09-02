@@ -4,10 +4,6 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-import json
-import os
-from datetime import datetime
-from pathlib import Path
 
 from shuttlecut import __version__
 from shuttlecut.activity import auto_roi, motion_energy, smooth
