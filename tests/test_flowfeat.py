@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from shuttlecut.flowfeat import global_shift, residual_action
+from shuttlecut.flowfeat import body_residual, global_shift, local_flow_vec, residual_action
 
 
 def _texture() -> np.ndarray:
@@ -40,3 +40,20 @@ def test_static_frames_have_no_residual_action() -> None:
 
     assert residual_action(previous, previous.copy(), [(20, 20, 100, 100)]) < 1.5
     assert residual_action(previous, previous, []) == 0.0
+
+
+def test_local_flow_vec_and_body_residual_cancel_box_translation() -> None:
+    # 仅 bbox 内纹理左移 10px、背景静止(全局平移≈0):
+    # 位移=(−10,0)(框随内容走) → 残差≈0;位移=(0,0)(躯干不动肢体动) → 残差≈10
+    rng = np.random.default_rng(7)
+    prev = cv2.GaussianBlur(rng.random((120, 160)).astype(np.float32), (5, 5), 0)
+    cur = prev.copy()
+    y, x, h, w = 30, 40, 60, 60
+    cur[y:y + h, x:x + w] = np.roll(prev[y:y + h, x:x + w], -10, axis=1)
+    bbox = (x, y, w, h)
+    vx, vy = local_flow_vec(prev, cur, bbox)
+    assert -12 <= vx <= -8 and abs(vy) < 3
+    r_moved = body_residual(prev, cur, bbox, (-10.0, 0.0))
+    r_still = body_residual(prev, cur, bbox, (0.0, 0.0))
+    assert r_moved < 3.5
+    assert r_still > 7

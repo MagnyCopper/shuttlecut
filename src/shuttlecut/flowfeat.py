@@ -74,7 +74,7 @@ def local_flow_vec(
         return 0.0, 0.0
     flow = cv2.calcOpticalFlowFarneback(
         prev_gray[top:bottom, left:right], cur_gray[top:bottom, left:right], None,
-        pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2,
+        pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2, flags=0,
     )
     return float(flow[..., 0].mean()), float(flow[..., 1].mean())
 
