@@ -85,12 +85,12 @@ def body_residual(
     bbox: tuple[int, int, int, int],
     displacement: tuple[float, float],
 ) -> float:
-    """肢体相对运动残差 = ‖框内平均流向量 − bbox 自身位移向量 − 全局平移‖。
+    """肢体相对运动残差 = ‖框内平均流向量 − bbox 自身位移向量‖(同在相机系)。
 
-    走动:框内流≈框位移 → 残差≈0;挥拍:肢体相对躯干运动 → 残差高。"""
+    走动/被跟拍:框内流≈框位移 → 残差≈0;挥拍:肢体相对躯干运动 → 残差高。
+    不减全局平移:跟拍时 v≈disp≈0,减 global 反而注入伪残差。"""
     vx, vy = local_flow_vec(prev_gray, cur_gray, bbox)
-    tx, ty = global_shift(prev_gray, cur_gray)
-    rx, ry = vx - displacement[0] - tx, vy - displacement[1] - ty
+    rx, ry = vx - displacement[0], vy - displacement[1]
     return float(np.hypot(rx, ry))
 
 

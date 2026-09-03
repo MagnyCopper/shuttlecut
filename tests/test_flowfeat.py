@@ -45,15 +45,14 @@ def test_static_frames_have_no_residual_action() -> None:
 def test_local_flow_vec_and_body_residual_cancel_box_translation() -> None:
     # 仅 bbox 内纹理左移 10px、背景静止(全局平移≈0):
     # 位移=(−10,0)(框随内容走) → 残差≈0;位移=(0,0)(躯干不动肢体动) → 残差≈10
-    rng = np.random.default_rng(7)
-    prev = cv2.GaussianBlur(rng.random((120, 160)).astype(np.float32), (5, 5), 0)
-    cur = prev.copy()
-    y, x, h, w = 30, 40, 60, 60
-    cur[y:y + h, x:x + w] = np.roll(prev[y:y + h, x:x + w], -10, axis=1)
-    bbox = (x, y, w, h)
-    vx, vy = local_flow_vec(prev, cur, bbox)
-    assert -12 <= vx <= -8 and abs(vy) < 3
-    r_moved = body_residual(prev, cur, bbox, (-10.0, 0.0))
-    r_still = body_residual(prev, cur, bbox, (0.0, 0.0))
+    # 结构化纹理整体左移 10px(相机静态、内容整体移动)
+    yy, xx = np.mgrid[0:120, 0:160]
+    base = (127 + 120 * np.sin(0.20 * xx) * np.cos(0.17 * yy)).astype(np.uint8)
+    cur = np.roll(base, -10, axis=1)
+    bbox = (40, 30, 60, 60)
+    vx, vy = local_flow_vec(base, cur, bbox)
+    assert -12 <= vx <= -8 and abs(vy) < 3, (vx, vy)
+    r_moved = body_residual(base, cur, bbox, (-10.0, 0.0))
+    r_still = body_residual(base, cur, bbox, (0.0, 0.0))
     assert r_moved < 3.5
     assert r_still > 7
