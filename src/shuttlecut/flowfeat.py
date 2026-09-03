@@ -58,6 +58,42 @@ def local_flow_mag(
     return float(np.linalg.norm(flow, axis=2).mean())
 
 
+def local_flow_vec(
+    prev_gray: np.ndarray,
+    cur_gray: np.ndarray,
+    bbox: tuple[int, int, int, int],
+) -> tuple[float, float]:
+    """Mean Farneback flow VECTOR inside a clamped box — 方向性位移场均值。"""
+    frame_height, frame_width = prev_gray.shape[:2]
+    x, y, width, height = bbox
+    left = max(0, min(x, frame_width))
+    top = max(0, min(y, frame_height))
+    right = max(left, min(x + width, frame_width))
+    bottom = max(top, min(y + height, frame_height))
+    if right <= left or bottom <= top:
+        return 0.0, 0.0
+    flow = cv2.calcOpticalFlowFarneback(
+        prev_gray[top:bottom, left:right], cur_gray[top:bottom, left:right], None,
+        pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.2,
+    )
+    return float(flow[..., 0].mean()), float(flow[..., 1].mean())
+
+
+def body_residual(
+    prev_gray: np.ndarray,
+    cur_gray: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    displacement: tuple[float, float],
+) -> float:
+    """肢体相对运动残差 = ‖框内平均流向量 − bbox 自身位移向量 − 全局平移‖。
+
+    走动:框内流≈框位移 → 残差≈0;挥拍:肢体相对躯干运动 → 残差高。"""
+    vx, vy = local_flow_vec(prev_gray, cur_gray, bbox)
+    tx, ty = global_shift(prev_gray, cur_gray)
+    rx, ry = vx - displacement[0] - tx, vy - displacement[1] - ty
+    return float(np.hypot(rx, ry))
+
+
 def residual_action(
     prev_gray: np.ndarray,
     cur_gray: np.ndarray,

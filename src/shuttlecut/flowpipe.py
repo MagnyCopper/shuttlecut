@@ -1,13 +1,15 @@
-"""Cached frame extraction, person detection, and residual-flow pipeline."""
+"""Cached frame extraction, person detection, and body-residual flow pipeline."""
 
 import json
+import os
 from pathlib import Path
 from typing import TypedDict
 
 import cv2
+import numpy as np
 
-from shuttlecut.detector import PersonBox, detect_persons
-from shuttlecut.flowfeat import residual_action
+from shuttlecut.detector import PersonBox, detect_persons, load_persons_jsonl
+from shuttlecut.flowfeat import body_residual
 from shuttlecut.sampler import extract_frames
 
 
@@ -27,6 +29,22 @@ def bbox_of(person: PersonBox) -> tuple[int, int, int, int]:
     )
 
 
+
+
+def _detect_or_load(frame_paths: list[str], fps: float, device: str, video: str) -> list:
+    """15fps 检测缓存(temp/work/<stem>/persons15.jsonl,键 mtime):重算光流时不重复检测。"""
+    stem = Path(video).stem
+    cache = Path(f"temp/work/{stem}/persons15.jsonl")
+    meta_path = Path(f"temp/work/{stem}/persons15.meta.json")
+    key = {"video": video, "mtime": os.path.getmtime(video), "fps": fps, "n": len(frame_paths)}
+    if cache.exists() and meta_path.exists() and json.loads(meta_path.read_text()) == key:
+        _, rows = load_persons_jsonl(str(cache))
+        print(f"[cache] 复用 15fps 检测缓存 {cache}")
+        return rows
+    rows = detect_persons(frame_paths, frame_fps=fps, device=device, out_jsonl=str(cache))
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(key))
+    return rows
 def run_flow(
     video: str,
     out_jsonl: str,
@@ -40,9 +58,10 @@ def run_flow(
     frame_paths = extract_frames(video, f"temp/work/{stem}/frames15", fps=fps, width=width)
     if max_frames is not None:
         frame_paths = frame_paths[:max_frames]
-    detections = detect_persons(frame_paths, frame_fps=fps, device=device)
+    detections = _detect_or_load(frame_paths, fps, device, video)
     rows: list[FlowRow] = []
-    previous = None
+    previous_gray = None
+    prev_players: list[tuple[float, float, tuple[int, int, int, int]]] = []  # (cx, cy, bbox)
     for frame_path, detection in zip(frame_paths, detections, strict=True):
         current = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
         if current is None:
@@ -50,10 +69,20 @@ def run_flow(
         frame_height = current.shape[0]
         selected = [p for p in detection.persons if p.h >= 0.10 * frame_height]
         selected.sort(key=lambda p: p.w * p.h, reverse=True)
-        bboxes = [bbox_of(p) for p in selected[:4]]
-        value = 0.0 if previous is None else residual_action(previous, current, bboxes)
+        cur_players = [(p.cx, p.cy, bbox_of(p)) for p in selected[:4]]
+        value = 0.0
+        if previous_gray is not None:
+            # 最近邻配对(≤150px),残差=框内流向量−bbox位移−全局平移
+            for cx, cy, bbox in cur_players:
+                if not prev_players:
+                    break
+                px, py, _ = min(prev_players, key=lambda q: (q[0] - cx) ** 2 + (q[1] - cy) ** 2)
+                if (px - cx) ** 2 + (py - cy) ** 2 <= 150 ** 2:
+                    r = body_residual(previous_gray, current, bbox, (cx - px, cy - py))
+                    value = max(value, r)
         rows.append({"t": round(detection.t, 3), "residual": round(value, 2), "n_persons": int(len(detection.persons))})
-        previous = current
+        previous_gray = current
+        prev_players = cur_players
     Path(out_jsonl).parent.mkdir(parents=True, exist_ok=True)
     with open(out_jsonl, "w") as handle:
         for row in rows:

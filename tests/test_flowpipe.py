@@ -20,7 +20,7 @@ def test_run_flow_writes_thirty_rows_and_loads_roundtrip(tmp_path, monkeypatch) 
         writer.write(frame)
     writer.release()
 
-    monkeypatch.setattr("shuttlecut.flowpipe.detect_persons", lambda frames, frame_fps, device: [
+    monkeypatch.setattr("shuttlecut.flowpipe.detect_persons", lambda frames, frame_fps, device, out_jsonl=None: [
         FramePersons(t=index / frame_fps, persons=[]) for index in range(len(frames))
     ])
     output = str(tmp_path / "flow.jsonl")

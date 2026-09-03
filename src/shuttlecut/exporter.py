@@ -26,7 +26,7 @@ def export_clips(video: str, rallies: list[Rally], out_dir: str,
         to = r.end + post_s
         dest = out / f"rally_{i:03d}.mp4"
         subprocess.run(
-            ["ffmpeg", "-loglevel", "error", *hwaccel_decode(),
+            ["ffmpeg", "-loglevel", "error", "-y", *hwaccel_decode(),
              "-ss", f"{ss:.3f}", "-to", f"{to:.3f}",
              "-i", video, *_video_encoder(),
              "-c:a", "aac", "-movflags", "+faststart", str(dest)],
@@ -47,7 +47,7 @@ def export_reel(clips: list[str], out_path: str) -> str:
     # concat 条目用绝对路径:ffmpeg 相对*列表文件目录*解析相对路径,会加倍
     lst.write_text("\n".join(_concat_line(str(Path(c).resolve())) for c in clips))
     subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-f", "concat", "-safe", "0",
+        ["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
          "-i", str(lst), "-c", "copy", out_path],
         check=True,
     )
