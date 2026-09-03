@@ -29,6 +29,23 @@ def bbox_of(person: PersonBox) -> tuple[int, int, int, int]:
     )
 
 
+def _frames_or_extract(video: str, fps: float, width: int) -> list[str]:
+    """帧目录缓存:meta 匹配且帧数符合预期时免重复抽帧。"""
+    stem = Path(video).stem
+    d = Path(f"temp/work/{stem}/frames15")
+    meta_path = d / "meta.json"
+    from shuttlecut.sampler import probe
+    expected = int(probe(video).duration_s * fps)
+    key = {"video": video, "mtime": os.path.getmtime(video), "fps": fps, "width": width}
+    if meta_path.exists() and json.loads(meta_path.read_text()) == key:
+        frames = sorted(str(p) for p in d.glob("frame_*.jpg"))
+        if abs(len(frames) - expected) <= 2:
+            print(f"[cache] 复用帧缓存 {d}({len(frames)} 帧)")
+            return frames
+    frames = extract_frames(video, str(d), fps=fps, width=width)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(key))
+    return frames
 
 
 def _detect_or_load(frame_paths: list[str], fps: float, device: str, video: str) -> list:
@@ -55,7 +72,7 @@ def run_flow(
 ) -> list[FlowRow]:
     """Run person-guided residual optical flow and persist one row per frame."""
     stem = Path(video).stem
-    frame_paths = extract_frames(video, f"temp/work/{stem}/frames15", fps=fps, width=width)
+    frame_paths = _frames_or_extract(video, fps, width)
     if max_frames is not None:
         frame_paths = frame_paths[:max_frames]
     detections = _detect_or_load(frame_paths, fps, device, video)
