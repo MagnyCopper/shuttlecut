@@ -1,7 +1,13 @@
 import cv2
 import numpy as np
 
-from shuttlecut.flowfeat import body_residual, global_shift, local_flow_vec, residual_action
+from shuttlecut.flowfeat import (
+    body_residual,
+    box_flow_dispersion,
+    global_shift,
+    local_flow_vec,
+    residual_action,
+)
 
 
 def _texture() -> np.ndarray:
@@ -56,3 +62,17 @@ def test_local_flow_vec_and_body_residual_cancel_box_translation() -> None:
     r_still = body_residual(base, cur, bbox, (0.0, 0.0))
     assert r_moved < 3.5
     assert r_still > 7
+
+
+def test_box_flow_dispersion_separates_limb_motion_from_translation() -> None:
+    yy, xx = np.mgrid[0:120, 0:160]
+    prev = (127 + 120 * np.sin(0.20 * xx) * np.cos(0.17 * yy)).astype(np.uint8)
+    bbox = (40, 30, 60, 60)
+    y, x, h, w = 30, 40, 60, 60
+    # 整框刚体平移 → 离散度≈0
+    cur_trans = np.roll(prev, -10, axis=1)
+    assert box_flow_dispersion(prev, cur_trans, bbox) < 3
+    # 仅小臂区域(60x15)快移 → 离散度高
+    cur_arm = prev.copy()
+    cur_arm[y:y + 15, x:x + w] = np.roll(prev[y:y + 15, x:x + w], -10, axis=1)
+    assert box_flow_dispersion(prev, cur_arm, bbox) > 6

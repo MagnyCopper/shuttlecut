@@ -108,3 +108,30 @@ def residual_action(
         max(local_flow_mag(prev_gray, cur_gray, bbox) - 0.8 * global_magnitude, 0.0)
         for bbox in bboxes
     )
+
+
+def box_flow_dispersion(
+    prev_gray: np.ndarray,
+    cur_gray: np.ndarray,
+    bbox: tuple[int, int, int, int],
+) -> float:
+    """框内 Farneback 幅值的 P95−中位数:肢体快动的高分散统计量。
+
+    刚体平移(走动/跟拍/整体移动)→ 框内幅值近乎一致 → 离散度≈0;
+    挥拍/蹬跨 → 手臂局部幅值远超躯干 → 高分散。"""
+    frame_height, frame_width = prev_gray.shape[:2]
+    x, y, width, height = bbox
+    left = max(0, min(x, frame_width))
+    top = max(0, min(y, frame_height))
+    right = max(left, min(x + width, frame_width))
+    bottom = max(top, min(y + height, frame_height))
+    if right <= left or bottom <= top:
+        return 0.0
+    flow = cv2.calcOpticalFlowFarneback(
+        prev_gray[top:bottom, left:right], cur_gray[top:bottom, left:right], None,
+        pyr_scale=0.5, levels=3, winsize=25, iterations=7, poly_n=7, poly_sigma=1.2, flags=0,
+    )
+    magnitudes = np.linalg.norm(flow, axis=2).ravel()
+    if magnitudes.size < 20:
+        return 0.0
+    return float(np.percentile(magnitudes, 95) - np.median(magnitudes))

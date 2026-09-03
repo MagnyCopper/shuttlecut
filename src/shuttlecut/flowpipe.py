@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from shuttlecut.detector import PersonBox, detect_persons, load_persons_jsonl
-from shuttlecut.flowfeat import body_residual
+from shuttlecut.flowfeat import box_flow_dispersion
 from shuttlecut.sampler import extract_frames
 
 
@@ -78,7 +78,6 @@ def run_flow(
     detections = _detect_or_load(frame_paths, fps, device, video)
     rows: list[FlowRow] = []
     previous_gray = None
-    prev_players: list[tuple[float, float, tuple[int, int, int, int]]] = []  # (cx, cy, bbox)
     for frame_path, detection in zip(frame_paths, detections, strict=True):
         current = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
         if current is None:
@@ -86,20 +85,13 @@ def run_flow(
         frame_height = current.shape[0]
         selected = [p for p in detection.persons if p.h >= 0.10 * frame_height]
         selected.sort(key=lambda p: p.w * p.h, reverse=True)
-        cur_players = [(p.cx, p.cy, bbox_of(p)) for p in selected[:4]]
+        bboxes = [bbox_of(p) for p in selected[:4]]
         value = 0.0
         if previous_gray is not None:
-            # 最近邻配对(≤150px),残差=框内流向量−bbox位移−全局平移
-            for cx, cy, bbox in cur_players:
-                if not prev_players:
-                    break
-                px, py, _ = min(prev_players, key=lambda q: (q[0] - cx) ** 2 + (q[1] - cy) ** 2)
-                if (px - cx) ** 2 + (py - cy) ** 2 <= 150 ** 2:
-                    r = body_residual(previous_gray, current, bbox, (cx - px, cy - py))
-                    value = max(value, r)
+            # 肢体快动统计量:框内幅值 P95−中位数,对刚体平移天然免疫
+            value = max((box_flow_dispersion(previous_gray, current, b) for b in bboxes), default=0.0)
         rows.append({"t": round(detection.t, 3), "residual": round(value, 2), "n_persons": int(len(detection.persons))})
         previous_gray = current
-        prev_players = cur_players
     Path(out_jsonl).parent.mkdir(parents=True, exist_ok=True)
     with open(out_jsonl, "w") as handle:
         for row in rows:
