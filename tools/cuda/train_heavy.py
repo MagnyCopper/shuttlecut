@@ -108,8 +108,10 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-4)
     lossf = nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
-    dl_t = DataLoader(WinDS(diffs, trn, a.win), batch_size=a.batch, shuffle=True, num_workers=4)
-    dl_v = DataLoader(WinDS(diffs, val, a.win), batch_size=a.batch, num_workers=2)
+    import sys
+    nworker = 0 if sys.platform == "win32" else 4
+    dl_t = DataLoader(WinDS(diffs, trn, a.win), batch_size=a.batch, shuffle=True, num_workers=nworker)
+    dl_v = DataLoader(WinDS(diffs, val, a.win), batch_size=a.batch, num_workers=nworker)
     best = 0.0
     for ep in range(a.epochs):
         model.train()
