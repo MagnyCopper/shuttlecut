@@ -9,11 +9,13 @@
 # Python venv (project-local)
 .venv/
 
-# Model weights (downloaded, not committed)
-models/
+# Model weights: 公开可下载权重不入库;自训时序 ckpt 例外入库
+models/*
+!models/temporal_*.pt
 
-# Project temp (never commit)
-temp/
+# Project temp: 仅概率曲线跨机复用,其余不入库
+temp/*
+!temp/prob_*.npy
 # Editor
 .vscode/
 .idea/
