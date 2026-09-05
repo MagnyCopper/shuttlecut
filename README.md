@@ -24,7 +24,7 @@ mkdir -p models
 # - RTMPose / YOLO person:见 docs/superpowers/specs/2026-09-01-shuttlecut-v1-design.md
 # - TrackNetV3 官方权重:gdown 1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA 解压到 models/tracknetv3/
 # - ETH shuttle YOLO:git lfs pull(见 third_party 说明)或 curl media.githubusercontent.com .../shuttle_detection/.../best.pt → models/eth_shuttle/
-# - 时序分类器 ckpt(models/temporal_*.pt):由各机器训练产物同步,或用 tools/cuda 套件重训
+# - 时序分类器 ckpt(models/temporal_*.pt)与概率曲线(temp/prob_*.npy):已随仓库入库,clone 即得
 
 # 4. 第三方仓库(不入库)
 git clone --depth 1 https://github.com/ZSHYC/BadmintonTrackNet.git third_party/BadmintonTrackNet
