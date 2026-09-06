@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--no-reel", action="store_true")
     pr.add_argument("--pose", action="store_true", help="姿态管线(RTMPose+球场标定)")
     pr.add_argument("--flow", action="store_true", help="光流管线(15fps 残差动作事件)")
+    pr.add_argument("--temporal", action="store_true", help="时序 R3D 管线(需 models/r3d_<stem>_w64.pt)")
+    pr.add_argument("--temporal-ckpt", default=None, help="时序 ckpt 路径覆盖(默认按 stem 查找)"),
 
     cl = sub.add_parser("calibrate", help="人工点选球场标定")
     cl.add_argument("video")
@@ -78,6 +80,8 @@ def process_one(video: str, out_root: str, args) -> int:
     cache_path = outdir / "cache.json"
     cache_key = {"video": video, "mtime": os.path.getmtime(video),
                  "fps": 5.0, "width": 1280}
+    if args.temporal:
+        return _process_temporal(video, meta, args, outdir, work)
     if args.flow:
         return _process_flow(video, meta, args, outdir, work, cache_path, cache_key)
     if args.pose:
@@ -175,6 +179,50 @@ def _process_pose(video: str, meta: VideoMeta, args, outdir: Path, work: Path,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "params": {"mode": "pose"} | vars(params),
         "rallies": _rally_rows(rallies),
+    }
+    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    total = sum(r.end - r.start for r in rallies)
+    print(f"[summary] {stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
+          f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
+    return 0
+
+
+
+def _process_temporal(video: str, meta: VideoMeta, args, outdir: Path, work: Path) -> int:
+    """--temporal:R3D 时序管线(帧缓存→补偿差分→概率曲线→两尺度切分→导出)。"""
+    from shuttlecut.segmenter import Rally, SegParams
+    from shuttlecut.temporal import extract_frames15, infer_curve, two_scale_segments
+
+    stem = Path(video).stem
+    ckpt = getattr(args, "temporal_ckpt", None) or f"models/r3d_{stem}_w64.pt"
+    if not Path(ckpt).exists():
+        print(f"[error] 未找到时序模型 {ckpt};请先用 tools/cuda/train_heavy.py 训练,"
+              f"或用 --temporal-ckpt 指定路径")
+        return 1
+    fine_ckpt = f"models/r3d_{stem}_w24.pt"
+
+    frames = extract_frames15(video, str(work / "frames15"))
+    print(f"[temporal] {len(frames)} 帧 @15fps,模型 {ckpt}")
+    centers, probs = infer_curve(frames, ckpt, device=args.device)
+
+    fine = (infer_curve(frames, fine_ckpt, win=24, tsub=2, device=args.device)
+            if Path(fine_ckpt).exists() else (None, None))
+
+    segs = two_scale_segments(centers, probs, fine[0], fine[1])
+    rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
+               for a, b in segs]
+    seg = SegParams()
+    clips = export_clips(video, rallies, str(outdir / "clips"),
+                         pre_s=seg.pre_roll_s, post_s=seg.post_roll_s)
+    if not args.no_reel and clips:
+        export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
+
+    payload = {
+        "video": stem,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "params": {"mode": "temporal", "ckpt": ckpt},
+        "rallies": [{"id": i + 1, "start_s": round(r.start, 2), "end_s": round(r.end, 2)}
+                    for i, r in enumerate(rallies)],
     }
     (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
     total = sum(r.end - r.start for r in rallies)
