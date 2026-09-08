@@ -24,10 +24,10 @@ def save_gt(path: str, video_stem: str, rallies: list[dict]) -> None:
     Path(path).write_text(json.dumps(
         {"video": video_stem, "labeled_by": "agent+user-spotcheck",
          "rallies": rallies},
-        ensure_ascii=False, indent=2))
+        ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def load_gt(path: str) -> dict:
-    d = json.loads(Path(path).read_text())
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
     _validate_rallies(d.get("rallies"))
     return d

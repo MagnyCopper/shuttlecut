@@ -68,7 +68,7 @@ def main():
     ap.add_argument("--curves-dir", default="artifacts/curves", help="概率曲线目录")
     ap.add_argument("--grid", action="store_true")
     a = ap.parse_args()
-    gt = json.load(open(a.gt))
+    gt = json.load(open(a.gt, encoding="utf-8"))
     segs = [(s["start_s"], s["end_s"]) for s in gt["rallies"]]
     centers = np.load(f"{a.curves_dir}/prob_centers_{a.tag}.npy")
     probs = np.load(f"{a.curves_dir}/prob_values_{a.tag}.npy")

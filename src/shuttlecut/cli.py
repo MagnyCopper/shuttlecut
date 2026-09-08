@@ -81,7 +81,7 @@ def process_one(video: str, out_root: str, args) -> int:
                      "peak": round(r.features.peak, 3), "var": round(r.features.var, 4)}
                     for i, r in enumerate(ranked)],
     }
-    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     if not args.no_reel and clips:
         top = top_rallies(ranked)
         top_clips = [clips[i] for i, r in enumerate(ranked) if r in top]
@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
                              f"temp/label/{Path(args.video).stem}/strip_{t0:.0f}_{t1:.0f}.jpg")
             print(f"生成密集帧条 [{t0},{t1}]s")
         if args.out:
-            rallies = json.loads(Path(f"temp/label/{Path(args.video).stem}/draft.json").read_text())
+            rallies = json.loads(Path(f"temp/label/{Path(args.video).stem}/draft.json").read_text(encoding="utf-8"))
             save_gt(args.out, Path(args.video).stem, rallies)
             print(f"真值已保存 → {args.out}")
         return 0
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         from shuttlecut.eval.evaluate import evaluate
         from shuttlecut.labeling.gt import load_gt
         det = [(r["start_s"], r["end_s"])
-               for r in json.loads(Path(args.rallies_json).read_text())["rallies"]]
+               for r in json.loads(Path(args.rallies_json).read_text(encoding="utf-8"))["rallies"]]
         g = [(r["start_s"], r["end_s"]) for r in load_gt(args.gt)["rallies"]]
         rep = evaluate(det, g)
         verdict = "PASS" if rep.recall >= 0.90 and rep.precision >= 0.90 else "FAIL"
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"missed={len(rep.missed)} extra={len(rep.extra)} "
               f"fragment={len(rep.fragment)} boundary={len(rep.boundary)}")
         if args.record:
-            with open(args.record, "a") as f:
+            with open(args.record, "a", encoding="utf-8") as f:
                 f.write(f"| {datetime.now().isoformat(timespec='seconds')} | {args.rallies_json} | "
                         f"{rep.recall:.3f} | {rep.precision:.3f} | {rep.mae_s:.2f}s | {verdict} |\n")
         return 0 if verdict == "PASS" else 2

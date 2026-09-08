@@ -82,7 +82,7 @@ def prepare(frames_dir: str, curves_tag: str, stem: str, out_dir: str) -> None:
             "grid": img if ok else None,
         })
     (out / "manifest.json").write_text(json.dumps({"stem": stem, "segments": manifest},
-                                                  ensure_ascii=False, indent=1))
+                                                  ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"prepare: {len(manifest)} 段候选,网格图 → {out}")
 
 

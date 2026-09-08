@@ -87,7 +87,7 @@ def main() -> None:
         result.append({"id": i, "start_s": round(a, 1), "end_s": round(b, 1),
                        "model": mv, "audio": av, "audio_rate": round(r, 2),
                        "vision": None, "final": None})
-    json.dump(result, open(outdir / "segments.json", "w"), ensure_ascii=False, indent=1)
+    json.dump(result, open(outdir / "segments.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"{len(segs)} 段;视觉判定图 → {outdir}/vision/(待视觉智能回填 vision 字段)")
 
 

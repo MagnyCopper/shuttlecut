@@ -18,7 +18,7 @@ def main():
     ap.add_argument("--out", default="temp/work")
     a = ap.parse_args()
     stem = Path(a.video).stem
-    gt = json.load(open(a.gt))
+    gt = json.load(open(a.gt, encoding="utf-8"))
     assert gt["video"] == stem or len(gt["rallies"]) > 0
     d = Path(a.out) / stem / "frames15"
     d.mkdir(parents=True, exist_ok=True)

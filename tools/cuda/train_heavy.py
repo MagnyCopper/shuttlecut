@@ -107,7 +107,7 @@ def main():
     gt_list = [x for x in a.gt.split(",") if x]
     diffs_list, items = [], []
     for fdir, gtf in zip(frames_list, gt_list):
-        gt = json.load(open(gtf))
+        gt = json.load(open(gtf, encoding="utf-8"))
         segs = [(s["start_s"], s["end_s"]) for s in gt["rallies"]]
         files = sorted(Path(fdir).glob("frame_*.jpg"))
         n = len(files)
