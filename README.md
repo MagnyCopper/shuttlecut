@@ -62,7 +62,7 @@ python tools\autolabel\label.py --video temp\<视频>.MP4 --ckpt models\r3d_join
 src/shuttlecut/     管线代码(cli/temporal/exporter/ffmpeg/audio/labeling/eval)
 tools/              cuda 训练套件 + autolabel 自主标注
 data/ground_truth/  段级真值(B1: 49 回合;B2: 62 回合;0037: 28 回合)
-artifacts/curves/   历史实验概率曲线(prob_*.npy,可离线复算切分与评测)
+artifacts/curves/   实验概率曲线输出区(curves.py 默认落盘,git 忽略)
 docs/               specs(现行设计)/ history(归档)/ eval-history.md(实测台账)
 tests/              pytest
 temp/ outputs/ models/   工作区与产物(git 忽略)

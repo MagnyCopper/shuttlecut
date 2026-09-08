@@ -18,6 +18,7 @@ temp/
 outputs/
 models/
 third_party/
+artifacts/
 
 # OS / env
 .DS_Store

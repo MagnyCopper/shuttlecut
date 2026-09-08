@@ -132,3 +132,8 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - 依赖:numpy 2.5.3 / scipy 1.18.1 / matplotlib 3.11.1 / opencv-python 5.0 / pillow 12.3 / torch 2.14.0+cu130(Python 3.12.12,RTX 2070 sm_75 实算验证);移除 30+ 死依赖;uv pip check 全兼容。
 - **回归验收:24 tests 全绿;x37joint 追踪曲线经 two_scale + 官方 evaluate 复现 P=0.818 / R=0.964 / MAE=0.02s(miss=1,extra=6),与 2026-09-08 定格逐位一致;joint2 ckpt strict load OK(torch 2.14)**。
 - 事故与修复:PowerShell 嵌套数组展平导致 6 文件字符级污染(e→v 等),自 5962da4 恢复并以 Python 脚本重打补丁(b4b130b);新增 tests/test_audio.py 作为无测试模块盲区的回归护栏。
+
+## 资产大清理(2026-09-09,用户裁决)
+- **models/ 仅保留 r3d_joint_b1b2_w64.pt(joint2 主力)**;删除 B1/B2 专家、joint3/joint3b 全套、.last、旧迭代、rnn、yolo×3、eth_shuttle/tracknetv3/rtmlib(释放 ~2.4GB)。
+- **artifacts/curves 58 个历史曲线全部删除**(git 历史可找回);x37joint 基线复算材料同样移除,如需复用 `git show 0ccc29a:artifacts/curves/prob_values_x37joint.npy`。理由:用户裁决老方案答案不作数,v2 将重训泛化专家;joint2 保留仅作 v2 预标注器与 E0 对照锚点。
+- 政策变更:概率曲线不再入库,curves.py 输出统一落 artifacts/curves(git 忽略)。
