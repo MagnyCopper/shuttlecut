@@ -82,7 +82,7 @@ rtmlib==0.0.16
 scikit-learn==1.9.0
 scipy==1.16.3
 setuptools==84.0.0
--e file:///Users/han/Projects/shuttlecut
+-e .
 six==1.17.0
 soundfile==0.14.0
 soupsieve==2.9.2

@@ -21,10 +21,12 @@ mkdir -p temp videos
 
 # 3. 模型权重(不入库,按需下载)
 mkdir -p models
-# - RTMPose / YOLO person:见 docs/superpowers/specs/2026-09-01-shuttlecut-v1-design.md
-# - TrackNetV3 官方权重:gdown 1CfzE87a0f6LhBp0kniSl1-89zaLCZ8cA 解压到 models/tracknetv3/
-# - ETH shuttle YOLO:git lfs pull(见 third_party 说明)或 curl media.githubusercontent.com .../shuttle_detection/.../best.pt → models/eth_shuttle/
-# - 时序分类器 ckpt(models/temporal_*.pt)与概率曲线(temp/prob_*.npy):已随仓库入库,clone 即得
+# - 【必需·零训练主力】R3D 时序分类器(132MB/个,超 GitHub 100MB 上限不入库,从旧机器拷贝):
+#   models/r3d_joint_b1b2_w64.pt   ← joint2(B1+B2 联合),新视频零训练直出:--temporal --temporal-ckpt models/r3d_joint_b1b2_w64.pt
+#   可选:models/r3d_DJI_*_w64.pt(各视频专家)、models/r3d_DJI_20260830173600_0025_D_w24.pt(B2 两尺度第二模型)
+#   可选:models/r3d_joint3*_w64.pt(0031 联合实验权重,已证损害泛化,仅存档)
+# - RTMPose / YOLO person / TrackNetV3 / ETH shuttle YOLO:旧路线遗留,时序管线用不到,可不装
+# - 时序 tiny-CNN ckpt(models/temporal_*.pt)与概率曲线(temp/prob_*.npy):已随仓库入库,clone 即得
 
 # 4. 第三方仓库(不入库)
 git clone --depth 1 https://github.com/ZSHYC/BadmintonTrackNet.git third_party/BadmintonTrackNet
@@ -32,8 +34,30 @@ git apply tools/patches/badmintontracknet_weights_only.patch
 git clone --depth 1 https://github.com/leggedrobotics/shuttle_detection.git third_party/shuttle_detection
 
 # 5. 验证
-python -m pytest -q          # 88 项测试应全绿
+python -m pytest -q          # 96 项测试应全绿
+shuttlecut process temp/<新视频>.MP4 --temporal --temporal-ckpt models/r3d_joint_b1b2_w64.pt   # 零训练出片烟雾测试
 ```
+
+## Windows(RTX 2070)迁移
+
+推理与训练均可用,步骤同上(PowerShell):
+
+```powershell
+git clone https://github.com/MagnyCopper/shuttlecut.git; cd shuttlecut
+python -m venv .venv; .venv\Scripts\activate
+pip install -r requirements.txt        # requirements.txt 装的是 CPU 版 torch;要用 RTX 2070 训练/推理再执行:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121 --force-reinstall
+winget install Gyan.FFmpeg             # 装完重开 PowerShell,ffmpeg -version 验证
+# 手动拷贝(从 Mac):
+#   models/r3d_joint_b1b2_w64.pt        ← 必需(132MB)
+#   temp/DJI_*.MP4                       ← 你的视频
+python -m pytest -q
+```
+
+- 推理设备自动选择(MPS→CUDA→CPU),Windows 上自动走 CUDA,比 Mac MPS 更快更稳(无楔死问题)
+- 零训练出片:`python -m shuttlecut.cli process temp/<视频>.MP4 --temporal --temporal-ckpt models/r3d_joint_b1b2_w64.pt`(或 pip install -e . 后直接 `shuttlecut process ...`)
+- 训练升级路径(RTX 2070 快 3-5 倍):`tools/cuda/README.md` Windows 手册(含 `--resume` 断点续训);曲线 `tools/cuda/curves.py --device cuda`
+- Mac 上的概率曲线 temp/prob_*.npy 已入库,Windows clone 即得,可离线复算切分/评测
 
 CUDA 机器(RTX 2070)训练重骨干:`tools/cuda/README.md`。
 
