@@ -137,3 +137,7 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - **models/ 仅保留 r3d_joint_b1b2_w64.pt(joint2 主力)**;删除 B1/B2 专家、joint3/joint3b 全套、.last、旧迭代、rnn、yolo×3、eth_shuttle/tracknetv3/rtmlib(释放 ~2.4GB)。
 - **artifacts/curves 58 个历史曲线全部删除**(git 历史可找回);x37joint 基线复算材料同样移除,如需复用 `git show 0ccc29a:artifacts/curves/prob_values_x37joint.npy`。理由:用户裁决老方案答案不作数,v2 将重训泛化专家;joint2 保留仅作 v2 预标注器与 E0 对照锚点。
 - 政策变更:概率曲线不再入库,curves.py 输出统一落 artifacts/curves(git 忽略)。
+
+## joint2 主力权重删除(2026-09-09 晚,用户终裁)
+- models/ 清空(含 r3d_joint_b1b2_w64.pt)。本机零训练推理能力归零,待 v2 首个联合模型重建;恢复途径:Mac 副本 / B1+B2 GT 重训复刻(2070 约 1h)。
+- v2 计划相应修订:预标注器与 E0 对照锚点改为首个 v2 模型;0037 基线复算曲线需 git show 0ccc29a:artifacts/curves/prob_*_x37joint.npy 找回。
