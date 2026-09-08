@@ -126,3 +126,9 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - **零训练 0037 最终定格**:joint2 P=0.818/R=0.964/MAE=0.02s。当日诚实杠杆全部到顶:加 0031 训练(两版)灾难性损害;滞回参数已在训练视频最优;曲线本就 stride-2 无 TTA 空间;音频修剪/投票证伪;视觉两级(全景+放大)最好 P=0.917/R=0.786。
 - **泛化结论**:0.90/0.90 零训练目标在 0037 上未达(P 差 0.082),需下一步:同风格多场干净 GT 数据规模化、边界加权损失、或 NVIDIA 训练更强骨干。
 - 补充:视觉短段否决策略(只杀 <Ls 且视觉 rest)扫描 5 档:L=6s 最优 P=0.957/R=0.786——P 达标 R 崩(0037 真段含 1.7-6.5s 短回合,视觉在远机位无法区分)。假段(2.0-17.7s)与真段(1.7-12.3s)长度分布重叠,无分离阈。**0037 零训练双 ≥0.90 判定不可达,需数据/骨干升级**。
+
+## 开源化重构与依赖刷新(2026-09-09,Windows/CUDA)
+- 结构:ground_truth→data/、temp/prob_*.npy→artifacts/curves/、eval_history→docs/eval-history.md、docs 重组 specs+history;删除已证伪旧路线 9 模块与 11 测试(96→24 项,随功能整体移除);README/LICENSE(MIT)/pyproject(v0.2.0) 重写;CLI 精简为 process/label/eval。
+- 依赖:numpy 2.5.3 / scipy 1.18.1 / matplotlib 3.11.1 / opencv-python 5.0 / pillow 12.3 / torch 2.14.0+cu130(Python 3.12.12,RTX 2070 sm_75 实算验证);移除 30+ 死依赖;uv pip check 全兼容。
+- **回归验收:24 tests 全绿;x37joint 追踪曲线经 two_scale + 官方 evaluate 复现 P=0.818 / R=0.964 / MAE=0.02s(miss=1,extra=6),与 2026-09-08 定格逐位一致;joint2 ckpt strict load OK(torch 2.14)**。
+- 事故与修复:PowerShell 嵌套数组展平导致 6 文件字符级污染(e→v 等),自 5962da4 恢复并以 Python 脚本重打补丁(b4b130b);新增 tests/test_audio.py 作为无测试模块盲区的回归护栏。
