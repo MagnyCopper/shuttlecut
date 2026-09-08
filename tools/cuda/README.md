@@ -22,8 +22,8 @@ videos/DJI_20260830173600_0025_D.MP4   # B2
 抽帧(每段约 2-3 分钟):
 
 ```bash
-python prep_data.py --video temp/DJI_20260830153830_0015_D.MP4 --gt data/ground_truth/DJI_20260830153830_0015_D.json
-python prep_data.py --video temp/DJI_20260830173600_0025_D.MP4 --gt data/ground_truth/DJI_20260830173600_0025_D.json
+python prep_data.py --video videos/DJI_20260830153830_0015_D.MP4 --gt data/ground_truth/DJI_20260830153830_0015_D.json
+python prep_data.py --video videos/DJI_20260830173600_0025_D.MP4 --gt data/ground_truth/DJI_20260830173600_0025_D.json
 ```
 
 ## 训练(每视频 × 每窗长,各约 15-40 分钟)

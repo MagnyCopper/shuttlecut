@@ -11,4 +11,4 @@
 
 - 品牌:**ShuttleCut** / GitHub 仓库:`shuttlecut`
 - 起源:DJI Osmo Pocket 拍摄的羽毛球视频(4K HEVC,存于 `temp/`),人工剪辑耗时耗力
-- 目标方向:自动定位高光剪辑片段、比分统计(需求澄清中,见 `oocs/superpowers/specs/`)
+- 目标方向:自动定位高光剪辑片段、比分统计(需求澄清中,见 `docs/specs/`)
