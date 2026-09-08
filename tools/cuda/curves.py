@@ -21,6 +21,8 @@ def main():
     ap.add_argument("--win", type=int, default=64)
     ap.add_argument("--tag", required=True)
     ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--tsub", type=int, default=2)
+    ap.add_argument("--device", default="auto")
     a = ap.parse_args()
 
     import train_heavy as th
@@ -31,7 +33,7 @@ def main():
         store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
     diffs = th.build_diffs(store)
 
-    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    dev = {"auto": "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"), "cuda": "cuda", "mps": "mps", "cpu": "cpu"}[a.device]
     import torchvision
     import torch.nn as nn
     model = torchvision.models.video.r3d_18()
@@ -46,8 +48,8 @@ def main():
             xs = []
             for s in starts[k:k + a.batch]:
                 d = diffs[s:s + a.win].astype(np.float32)
-                if a.win > 32:
-                    d = d[::2]
+                if a.win // a.tsub > 8:
+                    d = d[:: a.tsub]
                 frames = np.stack([cv2.resize(f, (W, H)) for f in d])
                 xs.append(np.repeat(frames[None], 3, axis=0))
             x = torch.from_numpy(np.ascontiguousarray(np.stack(xs))).to(dev)
