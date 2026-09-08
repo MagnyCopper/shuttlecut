@@ -23,6 +23,7 @@ def main():
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--tsub", type=int, default=2)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--out-dir", default="artifacts/curves", help="概率曲线输出目录")
     a = ap.parse_args()
 
     import train_heavy as th
@@ -56,8 +57,10 @@ def main():
             p = torch.sigmoid(model(x)).squeeze(-1).float().cpu().numpy()
             probs.extend(p.tolist())
             centers.extend([(s + a.win / 2) / 15.0 for s in starts[k:k + a.batch]])
-    np.save(f"prob_centers_{a.tag}.npy", np.array(centers))
-    np.save(f"prob_values_{a.tag}.npy", np.array(probs, dtype=np.float64))
+    out_dir = Path(a.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    np.save(out_dir / f"prob_centers_{a.tag}.npy", np.array(centers))
+    np.save(out_dir / f"prob_values_{a.tag}.npy", np.array(probs, dtype=np.float64))
     print(f"OK {a.tag}: {len(probs)} points")
 
 

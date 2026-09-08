@@ -12,7 +12,7 @@ pip install opencv-python numpy scipy
 
 ## 数据
 
-本目录随包附 `ground_truth/`(B1/B2 段级真值)。把两段原始视频放进 `videos/`:
+本目录随包附 `data/ground_truth/`(B1/B2 段级真值)。把两段原始视频放进 `temp/`:
 
 ```
 videos/DJI_20260830153830_0015_D.MP4   # B1
@@ -22,8 +22,8 @@ videos/DJI_20260830173600_0025_D.MP4   # B2
 抽帧(每段约 2-3 分钟):
 
 ```bash
-python prep_data.py --video videos/DJI_20260830153830_0015_D.MP4 --gt ground_truth/DJI_20260830153830_0015_D.json
-python prep_data.py --video videos/DJI_20260830173600_0025_D.MP4 --gt ground_truth/DJI_20260830173600_0025_D.json
+python prep_data.py --video temp/DJI_20260830153830_0015_D.MP4 --gt data/ground_truth/DJI_20260830153830_0015_D.json
+python prep_data.py --video temp/DJI_20260830173600_0025_D.MP4 --gt data/ground_truth/DJI_20260830173600_0025_D.json
 ```
 
 ## 训练(每视频 × 每窗长,各约 15-40 分钟)
@@ -31,11 +31,11 @@ python prep_data.py --video videos/DJI_20260830173600_0025_D.MP4 --gt ground_tru
 ```bash
 mkdir -p ckpt
 # B1:64 帧窗(主力)+ 24 帧窗(边界)
-python train_heavy.py --frames data/DJI_20260830153830_0015_D/frames15 --gt ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w64.pt --win 64
-python train_heavy.py --frames data/DJI_20260830153830_0015_D/frames15 --gt ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w24.pt --win 24
+python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w64.pt --win 64
+python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w24.pt --win 24
 # B2 同理
-python train_heavy.py --frames data/DJI_20260830173600_0025_D/frames15 --gt ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w64.pt --win 64
-python train_heavy.py --frames data/DJI_20260830173600_0025_D/frames15 --gt ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w24.pt --win 24
+python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w64.pt --win 64
+python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w24.pt --win 24
 ```
 
 VRAM 不足时加 `--batch 4`。
@@ -43,13 +43,13 @@ VRAM 不足时加 `--batch 4`。
 ## 曲线 + 官方口径评测
 
 ```bash
-python curves.py --frames data/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w64.pt --win 64 --tag b1r3d64
-python curves.py --frames data/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w24.pt --win 24 --tag b1r3d24
-python curves.py --frames data/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w64.pt --win 64 --tag b2r3d64
-python curves.py --frames data/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w24.pt --win 24 --tag b2r3d24
+python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w64.pt --win 64 --tag b1r3d64
+python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w24.pt --win 24 --tag b1r3d24
+python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w64.pt --win 64 --tag b2r3d64
+python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w24.pt --win 24 --tag b2r3d24
 
-python segment_eval.py --gt ground_truth/DJI_20260830153830_0015_D.json --tag b1r3d64 --grid
-python segment_eval.py --gt ground_truth/DJI_20260830173600_0025_D.json --tag b2r3d64 --grid
+python segment_eval.py --gt data/ground_truth/DJI_20260830153830_0015_D.json --tag b1r3d64 --grid
+python segment_eval.py --gt data/ground_truth/DJI_20260830173600_0025_D.json --tag b2r3d64 --grid
 ```
 
 ## 交付回 Mac
@@ -81,7 +81,7 @@ winget install Gyan.FFmpeg
 # 1. 取仓库与视频
 git clone https://github.com/MagnyCopper/shuttlecut.git
 cd shuttlecut
-# 把两段 MP4 放进 videos\(手动新建该目录)
+# 把两段 MP4 放进 temp\(手动新建该目录)
 
 # 2. 环境(仓库根目录)
 python -m venv .venv
@@ -95,12 +95,12 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 # 应输出: True NVIDIA GeForce RTX 2070 ...
 
 # 4. 之后流程与本 README 主体一致(python 命令逐条执行)
-python tools\cuda\prep_data.py --video videos\DJI_20260830153830_0015_D.MP4 --gt ground_truth\DJI_20260830153830_0015_D.json
+python tools\cuda\prep_data.py --video temp\DJI_20260830153830_0015_D.MP4 --gt data\ground_truth\DJI_20260830153830_0015_D.json
 mkdir ckpt
-python tools\cuda\train_heavy.py --frames data\DJI_20260830153830_0015_D\frames15 --gt ground_truth\DJI_20260830153830_0015_D.json --out ckpt\r3d_b1_w64.pt --win 64
+python tools\cuda\train_heavy.py --frames temp\work\DJI_20260830153830_0015_D\frames15 --gt data\ground_truth\DJI_20260830153830_0015_D.json --out ckpt\r3d_b1_w64.pt --win 64
 # ...(B1/B2 × W64/W24 共 4 次)
-python tools\cuda\curves.py --frames data\DJI_20260830153830_0015_D\frames15 --ckpt ckpt\r3d_b1_w64.pt --win 64 --tag b1r3d64
-python tools\cuda\segment_eval.py --gt ground_truth\DJI_20260830153830_0015_D.json --tag b1r3d64 --grid
+python tools\cuda\curves.py --frames temp\work\DJI_20260830153830_0015_D\frames15 --ckpt ckpt\r3d_b1_w64.pt --win 64 --tag b1r3d64
+python tools\cuda\segment_eval.py --gt data\ground_truth\DJI_20260830153830_0015_D.json --tag b1r3d64 --grid
 ```
 
 注意事项:

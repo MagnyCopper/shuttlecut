@@ -1,9 +1,9 @@
 """CUDA 机数据准备:从原始 MP4 + GT 抽 15fps 帧目录(与本项目 temp/work 布局一致)。
 
 用法:
-    python prep_data.py --video DJI_20260830153830_0015_D.MP4 --gt ground_truth/DJI_20260830153830_0015_D.json --out data/
+    python prep_data.py --video DJI_20260830153830_0015_D.MP4 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out temp/work
 产出:
-    data/<stem>/frames15/frame_%06d.jpg (960 宽)
+    temp/work/<stem>/frames15/frame_%06d.jpg (960 宽)
 """
 import argparse
 import json
@@ -15,7 +15,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
     ap.add_argument("--gt", required=True)
-    ap.add_argument("--out", default="data")
+    ap.add_argument("--out", default="temp/work")
     a = ap.parse_args()
     stem = Path(a.video).stem
     gt = json.load(open(a.gt))

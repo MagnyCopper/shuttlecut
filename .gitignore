@@ -1,45 +1,28 @@
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# Python
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+*.egg-info/
 
 # Local tooling
-.codegraph
-
-# Python venv (project-local)
-.venv/
-
-# Model weights: 公开可下载权重不入库;自训时序 ckpt 例外入库
-models/*
-!models/temporal_*.pt
-
-# Project temp: 仅概率曲线跨机复用,其余不入库
-temp/*
-!temp/prob_*.npy
-# Editor
+.codegraph/
 .vscode/
 .idea/
 *.swp
+.playwright-mcp/
 
-# Dependencies & build (按项目技术栈补充)
-node_modules/
-dist/
-build/
-*.log
-.env
-.env.*
-.superpowers/
-
-# Python cache
-__pycache__/
-*.pyc
-
-# 输出产物(仅保留 outputs/eval_history.md)
-outputs/*/
-outputs/**/clips/
-
-# 第三方克隆(见 tools/patches 与 README 重建说明)
+# Working areas (by design not tracked)
+temp/
+outputs/
+models/
 third_party/
 
-# playwright 截图
-.playwright-mcp/
+# OS / env
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.log
+node_modules/

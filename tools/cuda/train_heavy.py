@@ -2,7 +2,7 @@
 
 用法(每个视频一次):
     python train_heavy.py --frames data/DJI_20260830153830_0015_D/frames15 \
-        --gt ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1.pt
+        --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1.pt
     # 可选: --win 24 / 96,--epochs 8,--batch 8
 输出: --out 指定的最优 state_dict。
 """

@@ -1,7 +1,7 @@
 """官方口径段级评测(与 src/shuttlecut/eval/evaluate.py 同语义的自包含副本)。
 
 用法:
-    python segment_eval.py --gt ground_truth/<stem>.json --tag b1r3d [--grid]
+    python segment_eval.py --gt data/ground_truth/<stem>.json --tag b1r3d [--grid]
 """
 import argparse
 import json
@@ -65,12 +65,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gt", required=True)
     ap.add_argument("--tag", required=True)
+    ap.add_argument("--curves-dir", default="artifacts/curves", help="概率曲线目录")
     ap.add_argument("--grid", action="store_true")
     a = ap.parse_args()
     gt = json.load(open(a.gt))
     segs = [(s["start_s"], s["end_s"]) for s in gt["rallies"]]
-    centers = np.load(f"prob_centers_{a.tag}.npy")
-    probs = np.load(f"prob_values_{a.tag}.npy")
+    centers = np.load(f"{a.curves_dir}/prob_centers_{a.tag}.npy")
+    probs = np.load(f"{a.curves_dir}/prob_values_{a.tag}.npy")
     if not a.grid:
         pred = merge(segment(centers, median_filter(probs, size=5), 0.6, 0.4, 1.5), 1.2)
         p, r = evaluate(pred, segs)
