@@ -67,17 +67,33 @@ def process_one(video: str, out_root: str, args) -> int:
     if not args.no_reel and clips:
         export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
 
+    from shuttlecut.rank import score_rallies, top_rallies
+    ranked = score_rallies(segs, centers, probs)
     payload = {
         "video": stem,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "params": {"mode": "temporal", "ckpt": ckpt},
         "rallies": [{"id": i + 1, "start_s": round(r.start, 2), "end_s": round(r.end, 2)}
                     for i, r in enumerate(rallies)],
+        "ranking": [{"rank": r.rank, "rally_id": i + 1, "start_s": round(r.start, 2),
+                     "end_s": round(r.end, 2), "score": round(r.score, 3),
+                     "duration_s": round(r.features.duration_s, 2),
+                     "peak": round(r.features.peak, 3), "var": round(r.features.var, 4)}
+                    for i, r in enumerate(ranked)],
     }
     (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+    if not args.no_reel and clips:
+        top = top_rallies(ranked)
+        top_clips = [clips[i] for i, r in enumerate(ranked) if r in top]
+        if 0 < len(top_clips) < len(clips):
+            export_reel(top_clips, str(outdir / "clips" / "highlights_top.mp4"))
     total = sum(r.end - r.start for r in rallies)
     print(f"[summary] {stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
           f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
+    if ranked:
+        b = min(ranked, key=lambda r: r.rank)
+        print(f"[top1] 回合 #{b.rank}: {b.start:.0f}-{b.end:.0f}s "
+              f"({b.features.duration_s:.0f}s, peak={b.features.peak:.2f})")
     return 0
 
 
