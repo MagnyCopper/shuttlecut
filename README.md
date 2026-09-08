@@ -36,13 +36,13 @@ winget install Gyan.FFmpeg     # 新开终端后 ffmpeg -version 验证
 素材与权重(不入库,放本地):
 
 - 视频:`temp/*.MP4`(命名与 `data/ground_truth/*.json` 的 video 字段一致)
-- 权重:`models/r3d_joint_b1b2_w64.pt`(必需,132MB,零训练主力)
+- 权重:`models/<ckpt>.pt`(训练产物,不随仓库分发;用 tools/cuda/train_heavy.py 训练)
 
 ## 使用
 
 ```powershell
 # 零训练出片(核心用法)
-shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\r3d_joint_b1b2_w64.pt
+shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\<ckpt>.pt
 
 # 评测(官方口径)
 shuttlecut eval outputs\<视频>\rallies.json --gt data\ground_truth\<视频>.json
@@ -51,7 +51,7 @@ shuttlecut eval outputs\<视频>\rallies.json --gt data\ground_truth\<视频>.js
 shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>
 
 # 自主标注(模型预标 + 视觉分诊 + 音频票)
-python tools\autolabel\label.py --video temp\<视频>.MP4 --ckpt models\r3d_joint_b1b2_w64.pt
+python tools\autolabel\label.py --video temp\<视频>.MP4 --ckpt models\<ckpt>.pt
 ```
 
 训练与曲线工具见 `tools/cuda/README.md`(Windows RTX 2070 手册:抽帧 → train_heavy.py → curves.py → segment_eval.py)。
