@@ -44,7 +44,7 @@ def build_grids(frames_dir: Path, segs: list[tuple[float, float]], out: Path) ->
 
 
 def audio_rates(wav: Path, segs: list[tuple[float, float]]) -> list[float]:
-    from shuttlecut.refiner import audio_transients
+    from shuttlecut.audio import audio_transients
     tr = audio_transients(str(wav))
     ts = np.array([x.t for x in tr]) if tr else np.array([0.0])
     return [float(((ts >= a) & (ts <= b)).sum() / max(b - a, 0.1)) for a, b in segs]

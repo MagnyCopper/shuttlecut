@@ -1,8 +1,17 @@
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
-from shuttlecut.sampler import hwaccel_decode
-from shuttlecut.segmenter import Rally
+from shuttlecut.ffmpeg import hwaccel_decode
+
+
+@dataclass
+class Rally:
+    start: float
+    end: float
+    motion_peak: float
+    confidence: float
+    hits: int = 0
 
 
 def _video_encoder() -> list[str]:

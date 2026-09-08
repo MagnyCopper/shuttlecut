@@ -1,9 +1,12 @@
+"""场地声分析:击球瞬态检测(自主标注音频票 / 精彩度排序特征)。
+
+注意历史结论(eval_history 2026-09-07/08):瞬态密度不可用于段级投票或切分,
+仅限人工分诊辅助与排序特征。
+"""
 from dataclasses import dataclass
 
 import librosa
 import numpy as np
-
-from shuttlecut.segmenter import Rally
 
 
 @dataclass
@@ -32,19 +35,3 @@ def audio_transients(wav: str, z_thresh: float = 2.0, min_gap_s: float = 0.3,
             continue
         picked.append(Transient(float(t), float(zi)))
     return picked
-
-
-def refine(rallies: list[Rally], transients: list[Transient],
-           search_back_s: float = 3.0) -> list[Rally]:
-    times = [tr.t for tr in transients]
-    out: list[Rally] = []
-    for i, r in enumerate(rallies):
-        floor = rallies[i - 1].end + 0.2 if i > 0 else 0.0
-        lo, hi = max(floor, r.start - search_back_s), r.start
-        cands = [tr for tr in transients if lo <= tr.t <= hi]
-        new_start = (cands[-1].t - 0.2) if cands else r.start
-        new_start = max(new_start, floor)
-        hits = sum(1 for t in times if new_start <= t <= r.end)
-        out.append(Rally(start=new_start, end=r.end, motion_peak=r.motion_peak,
-                         confidence=r.confidence, hits=hits))
-    return out

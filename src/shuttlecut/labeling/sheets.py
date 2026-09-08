@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from shuttlecut.sampler import extract_frames, probe
+from shuttlecut.ffmpeg import extract_frames, probe
 
 
 def make_contact_sheets(video: str, outdir: str, step_s: float = 2.0,

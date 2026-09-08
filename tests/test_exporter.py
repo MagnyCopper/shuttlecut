@@ -1,6 +1,6 @@
 from shuttlecut.exporter import export_clips, export_reel
-from shuttlecut.sampler import probe
-from shuttlecut.segmenter import Rally
+from shuttlecut.exporter import Rally, export_clips, export_reel
+from shuttlecut.ffmpeg import probe
 
 
 def test_export_clips_duration(synth_video, tmp_path):
