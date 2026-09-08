@@ -43,11 +43,28 @@ def build_diffs(store):
         diffs[i] = np.abs(bw.astype(np.float32) - a.astype(np.float32)) / 32.0
     return diffs
 
+def build_backbone(name: str, pretrained: bool = True):
+    """返回 (model, in_size);统一 head 手术为单 logit 二分类。"""
+    import torch.nn as nn
+    if name == "r3d_18":
+        import torchvision
+        w = torchvision.models.video.R3D_18_Weights.KINETICS400_V1 if pretrained else None
+        m = torchvision.models.video.r3d_18(weights=w)
+        m.fc = nn.Linear(m.fc.in_features, 1)
+        return m, 112
+    if name == "x3d_s":
+        torch.hub.set_dir(str(Path(__file__).resolve().parents[2] / "models" / "torchhub"))
+        from pytorchvideo.models.hub import x3d_s
+        m = x3d_s(pretrained=pretrained)
+        m.blocks[5].activation = nn.Identity()
+        m.blocks[5].proj = nn.Linear(2048, 1)
+        return m, 160
+    raise ValueError(f"unknown backbone: {name}")
+
 
 class WinDS(Dataset):
-    def __init__(self, diffs, items, win, tsub=2):
-        self.diffs, self.items, self.win, self.tsub = diffs, items, win, tsub
-
+    def __init__(self, diffs, items, win, tsub=2, size=112):
+        self.diffs, self.items, self.win, self.tsub, self.size = diffs, items, win, tsub, size
     def __len__(self):
         return len(self.items)
 
@@ -61,7 +78,7 @@ class WinDS(Dataset):
             d = self.diffs[s:s + self.win].astype(np.float32)
         if self.win // self.tsub > 8:
             d = d[:: self.tsub]
-        frames = np.stack([cv2.resize(f, (W, H)) for f in d])
+        frames = np.stack([cv2.resize(f, (self.size, self.size)) for f in d])
         x = np.repeat(frames[None], 3, axis=0)
         return torch.from_numpy(np.ascontiguousarray(x)), torch.tensor(y, dtype=torch.float32)
 
@@ -77,6 +94,8 @@ def main():
     ap.add_argument("--lr", type=float, default=3e-5)
     ap.add_argument("--tsub", type=int, default=2, help="temporal subsample factor")
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--backbone", default="r3d_18", choices=["r3d_18", "x3d_s"])
+    ap.add_argument("--mixstyle", action="store_true", help="训练期域风格混合增广(v2 轨 A/E2)")
     ap.add_argument("--resume", action="store_true", help="warm-start from <out>.last if present")
     a = ap.parse_args()
     torch.manual_seed(13)
@@ -115,17 +134,19 @@ def main():
     trn = [items[i] for i in perm[n_val:]]
 
     dev = {"auto": "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"), "cuda": "cuda", "mps": "mps", "cpu": "cpu"}[a.device]
-    import torchvision
-    model = torchvision.models.video.r3d_18(weights=torchvision.models.video.R3D_18_Weights.KINETICS400_V1)
-    model.fc = nn.Linear(model.fc.in_features, 1)
+    model, in_size = build_backbone(a.backbone, pretrained=True)
     model = model.to(dev)
+    if a.mixstyle:
+        from mixstyle import attach
+        attach(model, a.backbone)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-4)
     lossf = nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler(enabled=dev == "cuda")
     import sys
     nworker = 0 if sys.platform == "win32" else 4
-    dl_t = DataLoader(WinDS(diffs_list, trn, a.win, a.tsub), batch_size=a.batch, shuffle=True, num_workers=nworker)
-    dl_v = DataLoader(WinDS(diffs_list, val, a.win, a.tsub), batch_size=a.batch, num_workers=nworker)
+    dl_t = DataLoader(WinDS(diffs_list, trn, a.win, a.tsub, size=in_size), batch_size=a.batch, shuffle=True, num_workers=nworker)
+    dl_v = DataLoader(WinDS(diffs_list, val, a.win, a.tsub, size=in_size), batch_size=a.batch, num_workers=nworker)
+    print(f"backbone={a.backbone} size={in_size} mixstyle={a.mixstyle}", flush=True)
     start_ep, best, _it = 0, 0.0, 0
     last_path = str(a.out) + ".last"
     if a.resume and Path(last_path).exists():  # 断点续训:MPS 楔死后只损失部分 epoch

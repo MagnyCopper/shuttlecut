@@ -22,7 +22,7 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--tsub", type=int, default=2)
-    ap.add_argument("--device", default="auto")
+    ap.add_argument("--backbone", default="r3d_18", choices=["r3d_18", "x3d_s"])
     ap.add_argument("--out-dir", default="artifacts/curves", help="概率曲线输出目录")
     a = ap.parse_args()
 
@@ -35,11 +35,8 @@ def main():
     diffs = th.build_diffs(store)
 
     dev = {"auto": "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"), "cuda": "cuda", "mps": "mps", "cpu": "cpu"}[a.device]
-    import torchvision
-    import torch.nn as nn
-    model = torchvision.models.video.r3d_18()
-    model.fc = nn.Linear(model.fc.in_features, 1)
-    model.load_state_dict(torch.load(a.ckpt, map_location=dev))
+    model, in_size = th.build_backbone(a.backbone, pretrained=False)
+    model.load_state_dict(torch.load(a.ckpt, map_location=dev, weights_only=False))
     model = model.to(dev).eval()
 
     starts = list(range(0, n - a.win + 1, 2))
@@ -51,7 +48,7 @@ def main():
                 d = diffs[s:s + a.win].astype(np.float32)
                 if a.win // a.tsub > 8:
                     d = d[:: a.tsub]
-                frames = np.stack([cv2.resize(f, (W, H)) for f in d])
+                frames = np.stack([cv2.resize(f, (in_size, in_size)) for f in d])
                 xs.append(np.repeat(frames[None], 3, axis=0))
             x = torch.from_numpy(np.ascontiguousarray(np.stack(xs))).to(dev)
             p = torch.sigmoid(model(x)).squeeze(-1).float().cpu().numpy()
