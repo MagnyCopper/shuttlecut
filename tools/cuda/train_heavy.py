@@ -129,7 +129,7 @@ def main():
     start_ep, best, _it = 0, 0.0, 0
     last_path = str(a.out) + ".last"
     if a.resume and Path(last_path).exists():  # 断点续训:MPS 楔死后只损失部分 epoch
-        st = torch.load(last_path, map_location="cpu")
+        st = torch.load(last_path, map_location="cpu", weights_only=False)  # 自产 ckpt(含 opt/ep/best),信任加载
         if isinstance(st, dict) and "model" in st:
             model.load_state_dict(st["model"]); opt.load_state_dict(st["opt"])
             start_ep, best = st["ep"] + 1, st.get("best", 0.0)
