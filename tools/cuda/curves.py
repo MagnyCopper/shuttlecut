@@ -23,6 +23,7 @@ def main():
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--tsub", type=int, default=2)
     ap.add_argument("--backbone", default="r3d_18", choices=["r3d_18", "x3d_s"])
+    ap.add_argument("--device", default="cuda", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--out-dir", default="artifacts/curves", help="概率曲线输出目录")
     a = ap.parse_args()
 
