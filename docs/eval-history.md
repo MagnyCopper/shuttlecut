@@ -141,3 +141,16 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 ## joint2 主力权重删除(2026-09-09 晚,用户终裁)
 - models/ 清空(含 r3d_joint_b1b2_w64.pt)。本机零训练推理能力归零,待 v2 首个联合模型重建;恢复途径:Mac 副本 / B1+B2 GT 重训复刻(2070 约 1h)。
 - v2 计划相应修订:预标注器与 E0 对照锚点改为首个 v2 模型;0037 基线复算曲线需 git show 0ccc29a:artifacts/curves/prob_*_x37joint.npy 找回。
+
+## E0' 自举模型重建(2026-09-09 深夜,Windows/RTX 2070)
+- **数据修复**:B1 帧库残缺 80%(15.1min 视频仅 2697 帧,首跑中断遗留)→ 前台同步重抽 13616 帧完整;Windows GBK 编码击穿 JSON 读取(UnicodeDecodeError 位置 1439)→ 全库 13 处 open/read_text/write_text 补 encoding='utf-8'(commit 29a75b3)。
+- **E0'(r3d_18, B1+B2 联合, 6853 窗/3768 正, 6 epoch)官方口径**:
+  - B1 默认阈值 P=0.917/R=0.898(48/49);grid 调参(HI=0.4/LO=0.2)P=0.957/R=0.918 ✓
+  - B2 默认阈值 P=0.804/R=0.726(56/62);grid 调参(sm=3/mg=0)P=0.877/R=0.806(仍 <0.90,B2 为弱项)
+- **AUC>1 根因**:手写 Mann-Whitney argsort 顺序秩在 sigmoid 饱和并列时秩和虚增 → scipy rankdata 并列平均秩修复(切分本身无泄漏,全局随机置换)。
+
+## look_at 视觉裁定管线首战(2026-09-10 凌晨)
+- **管线**:auto.py prepare 渲染 9 帧网格 → 3合1组合图(调用量 1/3)→ look_at 逐段裁定 playing/not → merge 出 GT。106 段裁定:0030 37/56 playing、0033 34/50 playing;冲突段(grid_001)二次仲裁判 not。
+- **数据卫生**:保留段 mean_p > 剔除段(0030: 0.523>0.491,0033: 0.501>0.397)——模型置信度与视觉判断方向一致。
+- **GT 入库**:data/ground_truth/DJI_20260905151437_0030_D.json(37 回合)+ DJI_20260905154319_0033_D.json(34 回合)(commit 44cdc60)。
+- 0034(18.1min/16250帧)+0036(13.8min/12396帧)抽帧完成,保留为 held-out 考题(look_at 出 GT 评测)。

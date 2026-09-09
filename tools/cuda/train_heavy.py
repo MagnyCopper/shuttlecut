@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+from scipy.stats import rankdata
 from torch.utils.data import DataLoader, Dataset
 
 H, W = 112, 112
@@ -183,9 +184,7 @@ def main():
                 sv.append(o.cpu().numpy())
                 yv.append(yb.numpy())
         sv, yv = np.concatenate(sv).reshape(-1), np.concatenate(yv).reshape(-1)
-        order = np.argsort(sv)
-        ranks = np.empty_like(order, float)
-        ranks[order] = np.arange(1, len(sv) + 1)
+        ranks = rankdata(sv)  # 并列平均秩:argsort 顺序秩在 sigmoid 饱和并列时会推高 AUC 至 >1
         n1 = yv.sum()
         auc = (ranks[yv == 1].sum() - n1 * (n1 - 1) / 2) / (n1 * (len(yv) - n1))
         print(f"epoch {ep+1}: loss={tot/len(trn):.4f} val_AUC={auc:.4f}", flush=True)
