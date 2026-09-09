@@ -154,3 +154,10 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - **数据卫生**:保留段 mean_p > 剔除段(0030: 0.523>0.491,0033: 0.501>0.397)——模型置信度与视觉判断方向一致。
 - **GT 入库**:data/ground_truth/DJI_20260905151437_0030_D.json(37 回合)+ DJI_20260905154319_0033_D.json(34 回合)(commit 44cdc60)。
 - 0034(18.1min/16250帧)+0036(13.8min/12396帧)抽帧完成,保留为 held-out 考题(look_at 出 GT 评测)。
+
+## GPT 外部审计裁决(2026-09-10,辩证采纳)
+- **采纳并已修**:AUC 公式 n1(n1-1)/2→n1(n1+1)/2(恒定膨胀 1/n0≈0.0006,E1 的 1.0005≈真值 0.9999);运动补偿仅用平移(estimateAffinePartial2D 估出旋转缩放但 warp 只取平移)——属实,但留作 E3 单独实验(改输入表征会毁掉进行中的 E0-data/E2 消融对照);highlights_top 改按精彩度排序+CLI 接线音频击球密度特征(score_rallies hit_times 此前未接);消融补 E1x(x3d_s 无 MixStyle 对照,已排队)。
+- **采纳待执行**:held-out GT 负区间审计(均匀负采样+静默段盲审,temp/neg_audit.py 已备);逐视频 P/R+宏平均报告口径。
+- **部分采纳**:"验证窗口与训练窗口时间重叠 100%"属实(全局随机切分下相邻窗 93% 帧重叠,val_AUC 虚高)——但最终裁判本就是 held-out 0034/0036 官方口径,训练内 val 仅用于 epoch 选择,风险可控;E3 起改按 rally 块切分。
+- **不采纳**:X3D Kinetics 归一化(差分图非 RGB 统计域,归一化无意义);BFMD/VideoMAE 即刻上马(BFMD 需 YouTube 违反硬约束,VideoMAE 冻结特征列为 E4+ 储备,当前瓶颈是数据与验证而非容量);精彩度 pairwise 用户标注验收(与"零人工干预"硬约束冲突,改用 look_at 视觉偏好代理验收)。
+- **实验重命名**:train_e1.log(r3d joint4)更名 E0-data;E2=x3d_s+MixStyle;E1x=x3d_s 无 MixStyle(消融对照)。

@@ -68,6 +68,15 @@ def process_one(video: str, out_root: str, args) -> int:
         export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
 
     from shuttlecut.rank import score_rallies, top_rallies
+    hits = None
+    try:
+        from shuttlecut.audio import audio_transients
+        from shuttlecut.ffmpeg import extract_audio
+        wav = extract_audio(video, str(outdir / "audio.wav"))
+        hits = [tr.t for tr in audio_transients(wav)] or None
+    except Exception as e:  # 无音轨/ffmpeg 异常时降级为纯视觉评分
+        print(f"[warn] 音频击球特征不可用: {e}")
+    ranked = score_rallies(segs, centers, probs, hit_times=hits)
     ranked = score_rallies(segs, centers, probs)
     payload = {
         "video": stem,
@@ -84,7 +93,8 @@ def process_one(video: str, out_root: str, args) -> int:
     (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     if not args.no_reel and clips:
         top = top_rallies(ranked)
-        top_clips = [clips[i] for i, r in enumerate(ranked) if r in top]
+        pos = {id(r): i for i, r in enumerate(ranked)}
+        top_clips = [clips[pos[r]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
         if 0 < len(top_clips) < len(clips):
             export_reel(top_clips, str(outdir / "clips" / "highlights_top.mp4"))
     total = sum(r.end - r.start for r in rallies)

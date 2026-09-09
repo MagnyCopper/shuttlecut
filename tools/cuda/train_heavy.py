@@ -186,7 +186,7 @@ def main():
         sv, yv = np.concatenate(sv).reshape(-1), np.concatenate(yv).reshape(-1)
         ranks = rankdata(sv)  # 并列平均秩:argsort 顺序秩在 sigmoid 饱和并列时会推高 AUC 至 >1
         n1 = yv.sum()
-        auc = (ranks[yv == 1].sum() - n1 * (n1 - 1) / 2) / (n1 * (len(yv) - n1))
+        auc = (ranks[yv == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * (len(yv) - n1))  # Mann-Whitney: 正类最小秩和为 n1(n1+1)/2
         print(f"epoch {ep+1}: loss={tot/len(trn):.4f} val_AUC={auc:.4f}", flush=True)
         if auc > best:
             best = auc
