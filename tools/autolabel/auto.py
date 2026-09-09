@@ -59,13 +59,13 @@ def segment_frames(segs: list[tuple[float, float]]) -> list[tuple[int, int]]:
     return [(max(0, int(round(s * 15))), max(0, int(round(e * 15)))) for s, e in segs]
 
 
-def prepare(frames_dir: str, curves_tag: str, stem: str, out_dir: str) -> None:
+def prepare(frames_dir: str, curves_tag: str, stem: str, out_dir: str, hi: float = 0.4, lo: float = 0.1) -> None:
     from shuttlecut.temporal import two_scale_segments
 
     frames = sorted(str(p) for p in Path(frames_dir).glob("frame_*.jpg"))
     centers = np.load(f"artifacts/curves/prob_centers_{curves_tag}.npy")
     probs = np.load(f"artifacts/curves/prob_values_{curves_tag}.npy")
-    segs = two_scale_segments(centers, probs, None, None)
+    segs = two_scale_segments(centers, probs, None, None, hi=hi, lo=lo)
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -113,13 +113,15 @@ def main() -> None:
     p1.add_argument("--curves", required=True, help="曲线 tag(artifacts/curves/prob_*_<tag>.npy)")
     p1.add_argument("--stem", required=True)
     p1.add_argument("--out", required=True)
+    p1.add_argument("--hi", type=float, default=0.4, help="滞回高阈(低阈值扫描抓弱候选)")
+    p1.add_argument("--lo", type=float, default=0.1, help="滞回低阈")
     p2 = sub.add_parser("merge")
     p2.add_argument("--stem", required=True)
     p2.add_argument("--in", dest="indir", required=True)
     p2.add_argument("--gt-out", default=None)
     a = ap.parse_args()
     if a.cmd == "prepare":
-        prepare(a.frames, a.curves, a.stem, a.out)
+        prepare(a.frames, a.curves, a.stem, a.out, a.hi, a.lo)
     elif a.cmd == "merge":
         merge(a.stem, a.indir, a.gt_out)
 
