@@ -16,7 +16,8 @@ import cv2
 import numpy as np
 
 H, W = 90, 160
-TWO_SCALE_DEFAULTS = {"hi": 0.4, "lo": 0.1, "min_len_s": 1.5, "split_th": 0.2, "min_sub_s": 1.5}
+TWO_SCALE_DEFAULTS = {"hi": 0.4, "lo": 0.1, "min_len_s": 1.5, "split_th": 0.2, "min_sub_s": 1.5,
+               "sm": 0, "mg": 0.0}  # sm=median 平滑窗(曲线点数), mg=邻接段合并间隙(s);由训练侧选参定默认
 
 
 def build_diffs(store: np.ndarray) -> np.ndarray:
@@ -95,7 +96,19 @@ def two_scale_segments(coarse_centers: np.ndarray, coarse_probs: np.ndarray,
                        **params) -> list[tuple[float, float]]:
     """W64 hysteresis + optional W24 deep-valley splitting (the validated recipe)."""
     cfg = {**TWO_SCALE_DEFAULTS, **params}
-    base = segment_curve(coarse_centers, coarse_probs, cfg["hi"], cfg["lo"], cfg["min_len_s"])
+    probs = coarse_probs
+    if cfg["sm"] > 1:
+        from scipy.ndimage import median_filter
+        probs = median_filter(coarse_probs, size=cfg["sm"])
+    base = segment_curve(coarse_centers, probs, cfg["hi"], cfg["lo"], cfg["min_len_s"])
+    if cfg["mg"] > 0.0:
+        merged: list[tuple[float, float]] = []
+        for a, b in base:
+            if merged and a - merged[-1][1] <= cfg["mg"]:
+                merged[-1] = (merged[-1][0], b)
+            else:
+                merged.append((a, b))
+        base = merged
     if fine_centers is None or fine_probs is None:
         return base
     out: list[tuple[float, float]] = []
