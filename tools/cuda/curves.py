@@ -30,10 +30,15 @@ def main():
     import train_heavy as th
     files = sorted(Path(a.frames).glob("frame_*.jpg"))
     n = len(files)
-    store = np.zeros((n, 90, 160), np.uint8)
-    for i, f in enumerate(files):
-        store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
-    diffs = th.build_diffs(store)
+    cache = Path(a.frames).parent / "diffs_cache.npy"
+    if cache.exists():
+        diffs = np.load(cache).astype(np.float32)
+    else:
+        store = np.zeros((n, 90, 160), np.uint8)
+        for i, f in enumerate(files):
+            store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
+        diffs = th.build_diffs(store)
+        np.save(cache, diffs.astype(np.float16))
 
     dev = {"auto": "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"), "cuda": "cuda", "mps": "mps", "cpu": "cpu"}[a.device]
     model, in_size = th.build_backbone(a.backbone, pretrained=False)

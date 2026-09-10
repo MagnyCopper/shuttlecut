@@ -117,6 +117,15 @@ def main():
         for x0, x1 in segs:
             cov[(ts >= x0) & (ts <= x1)] = 1.0
         store = np.zeros((n, 90, 160), np.uint8)
+        cache = Path(fdir).parent / "diffs_cache.npy"
+        if cache.exists():
+            d = np.load(cache).astype(np.float32)
+            print(f"[cache] {fdir}: {d.shape}", flush=True)
+        else:
+            for i, f in enumerate(files):
+                store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
+            d = build_diffs(store)
+            np.save(cache, d.astype(np.float16))  # 磁盘缓存(f16),下次零成本复用
         for i, f in enumerate(files):
             store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
         d = build_diffs(store)
