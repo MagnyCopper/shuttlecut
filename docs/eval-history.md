@@ -200,3 +200,9 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - GT v4:8 视频音频锚定边界(span 内 first-1.2/last+1.8,<3s 间歇并段),微并(49→48 等)。
 - E10(统一GT,s13):0034 0.259/0.259、0036 0.100/0.070——判:边界约定非单独解药。
 - **跨 session 总结论(~30 实验/25 GPU时):3 训练场馆+4.4k 窗口下,配方空间已榨干,均值 ~0.4±0.15。缺口成分=数据(场馆多样性)。下一阶段=B站数据计划(6-10 场馆+视觉核验 GT)。**
+
+## Session 3 交接(数据计划,用户裁决方向 A)
+- **新场馆素材下载中**(分离进程,跨 session 存活):yygq(上海YYGQ 2.5h)/yangjiang(阳江团体赛 2h)/jiguang(极光俱乐部 2h)/linzhou(独立球馆 28m)→ temp\bili\*.mp4 + 自动抽帧 temp\work\<name>\frames15。标记: temp\logs\bili_dl2.done。
+- **执行程序**(每视频):①look_at probe 网格验场馆/机位 → ②E5 曲线出候选(curves.py,ckpt models/r3d_all6_w64.pt)→ ③audio_triage.py 预分诊 → ④bg_combo.py 组合图 → ⑤look_at 批量核验(含近/远场)→ ⑥GT v4 音频锚定(gt_unify.py 增补 stem)→ ⑦VMAE 特征提取(extract_vmae.py)。
+- **训练**:E11 = B1/B2/0030/0033/0034/0036/bgp1/bgp2 + 新 4 场馆(12 视频)×3 种子;LOO-0034/0036 多种子终审;期望:场馆数 3→7 是方差与泛化的根本改善。
+- 遗留:RGB 头 v1 弱(特征已缓存 8 视频,新视频需提取);W24 精细边界模型未做(边界漂移占误差 ~50%,tol8 时 R 0.71-0.74)。
