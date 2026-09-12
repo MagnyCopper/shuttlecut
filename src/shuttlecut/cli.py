@@ -94,7 +94,7 @@ def process_one(video: str, out_root: str, args) -> int:
     if not args.no_reel and clips:
         top = top_rallies(ranked)
         pos = {id(r): i for i, r in enumerate(ranked)}
-        top_clips = [clips[pos[r]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
+        top_clips = [clips[pos[id(r)]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
         if 0 < len(top_clips) < len(clips):
             export_reel(top_clips, str(outdir / "clips" / "highlights_top.mp4"))
     total = sum(r.end - r.start for r in rallies)
