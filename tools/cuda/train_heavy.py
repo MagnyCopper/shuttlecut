@@ -98,10 +98,11 @@ def main():
     ap.add_argument("--backbone", default="r3d_18", choices=["r3d_18", "x3d_s"])
     ap.add_argument("--mixstyle", action="store_true", help="训练期域风格混合增广(v2 轨 A/E2)")
     ap.add_argument("--resume", action="store_true", help="warm-start from <out>.last if present")
+    ap.add_argument("--seed", type=int, default=13)
     a = ap.parse_args()
-    torch.manual_seed(13)
-    random.seed(13)
-    np.random.seed(13)
+    torch.manual_seed(a.seed)
+    random.seed(a.seed)
+    np.random.seed(a.seed)
 
     # 多场次联合:--frames/--gt 支持逗号分隔
     frames_list = [x for x in a.frames.split(",") if x]
