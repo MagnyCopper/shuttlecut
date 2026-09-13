@@ -1,86 +1,111 @@
 {
  "video": "DJI_20260912180439_0015_D",
- "source": "Session3 用户实拍 | look_at 网格裁定 + 音频间隙拆分 + 击球锚定边界",
+ "source": "Session3 v3 | 网格look_at + 概率谷look_at确认拆分 + 击球锚定(收缩) | v4 条带精判替换巨段",
  "rallies": [
   {
    "id": 1,
-   "start_s": 2.1,
-   "end_s": 5.1
+   "start_s": 2.5,
+   "end_s": 5.5
   },
   {
    "id": 2,
-   "start_s": 6.5,
-   "end_s": 17.7
+   "start_s": 11.5,
+   "end_s": 14.5
   },
   {
    "id": 3,
-   "start_s": 22.3,
-   "end_s": 57.8
+   "start_s": 17.5,
+   "end_s": 20.5
   },
   {
    "id": 4,
-   "start_s": 60.2,
-   "end_s": 112.9
+   "start_s": 23.5,
+   "end_s": 29.5
   },
   {
    "id": 5,
-   "start_s": 116.1,
-   "end_s": 124.2
+   "start_s": 38.5,
+   "end_s": 53.5
   },
   {
    "id": 6,
-   "start_s": 125.6,
-   "end_s": 146.3
+   "start_s": 59.5,
+   "end_s": 77.5
   },
   {
    "id": 7,
-   "start_s": 148.0,
-   "end_s": 154.2
+   "start_s": 83.5,
+   "end_s": 89.5
   },
   {
    "id": 8,
-   "start_s": 155.4,
-   "end_s": 158.4
+   "start_s": 98.5,
+   "end_s": 107.5
   },
   {
    "id": 9,
-   "start_s": 162.3,
-   "end_s": 169.8
+   "start_s": 117.0,
+   "end_s": 121.5
   },
   {
    "id": 10,
-   "start_s": 171.1,
-   "end_s": 180.2
+   "start_s": 126.0,
+   "end_s": 129.0
   },
   {
    "id": 11,
-   "start_s": 182.3,
-   "end_s": 197.5
+   "start_s": 138.0,
+   "end_s": 156.0
   },
   {
    "id": 12,
-   "start_s": 199.2,
-   "end_s": 219.2
+   "start_s": 170.2,
+   "end_s": 173.2
   },
   {
    "id": 13,
-   "start_s": 221.4,
-   "end_s": 270.4
+   "start_s": 182.2,
+   "end_s": 185.2
   },
   {
    "id": 14,
-   "start_s": 275.9,
-   "end_s": 303.7
+   "start_s": 188.2,
+   "end_s": 197.2
   },
   {
    "id": 15,
-   "start_s": 310.1,
-   "end_s": 315.1
+   "start_s": 203.2,
+   "end_s": 212.2
   },
   {
    "id": 16,
-   "start_s": 317.3,
-   "end_s": 328.8
+   "start_s": 215.2,
+   "end_s": 227.2
+  },
+  {
+   "id": 17,
+   "start_s": 233.2,
+   "end_s": 245.2
+  },
+  {
+   "id": 18,
+   "start_s": 258.5,
+   "end_s": 269.0
+  },
+  {
+   "id": 19,
+   "start_s": 277.0,
+   "end_s": 290.7
+  },
+  {
+   "id": 20,
+   "start_s": 295.9,
+   "end_s": 300.9
+  },
+  {
+   "id": 21,
+   "start_s": 310.5,
+   "end_s": 327.8
   }
  ]
 }

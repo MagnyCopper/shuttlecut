@@ -1,60 +1,75 @@
 {
  "video": "DJI_20260912174203_0013_D",
- "source": "Session3 用户实拍 | look_at 网格裁定 + 音频间隙拆分 + 击球锚定边界",
+ "source": "Session3 v2 | look_at 网格 + 差分谷拆分 + 击球锚定(收紧) | v4 条带精判替换巨段",
  "rallies": [
   {
    "id": 1,
-   "start_s": 8.8,
-   "end_s": 19.7
+   "start_s": 9.0,
+   "end_s": 24.0
   },
   {
    "id": 2,
-   "start_s": 21.9,
-   "end_s": 24.9
+   "start_s": 29.0,
+   "end_s": 52.0
   },
   {
    "id": 3,
-   "start_s": 28.9,
-   "end_s": 34.7
+   "start_s": 57.0,
+   "end_s": 74.0
   },
   {
    "id": 4,
-   "start_s": 39.6,
-   "end_s": 52.5
+   "start_s": 84.8,
+   "end_s": 93.9
   },
   {
    "id": 5,
-   "start_s": 56.8,
-   "end_s": 75.7
+   "start_s": 102.4,
+   "end_s": 108.4
   },
   {
    "id": 6,
-   "start_s": 82.9,
-   "end_s": 98.1
+   "start_s": 111.4,
+   "end_s": 132.4
   },
   {
    "id": 7,
-   "start_s": 99.3,
-   "end_s": 135.1
+   "start_s": 140.0,
+   "end_s": 167.1
   },
   {
    "id": 8,
-   "start_s": 138.8,
-   "end_s": 195.9
+   "start_s": 174.3,
+   "end_s": 177.9
   },
   {
    "id": 9,
-   "start_s": 202.9,
-   "end_s": 221.3
+   "start_s": 183.5,
+   "end_s": 190.7
   },
   {
    "id": 10,
-   "start_s": 222.4,
-   "end_s": 255.5
+   "start_s": 199.1,
+   "end_s": 202.1
   },
   {
    "id": 11,
-   "start_s": 256.7,
+   "start_s": 205.1,
+   "end_s": 217.1
+  },
+  {
+   "id": 12,
+   "start_s": 220.1,
+   "end_s": 229.1
+  },
+  {
+   "id": 13,
+   "start_s": 238.5,
+   "end_s": 245.5
+  },
+  {
+   "id": 14,
+   "start_s": 249.6,
    "end_s": 261.3
   }
  ]

@@ -1,16 +1,21 @@
 {
  "video": "DJI_20260912152303_0009_D",
- "source": "Session3 用户实拍 | look_at 网格裁定 + 音频间隙拆分 + 击球锚定边界",
+ "source": "Session3 v2 | look_at 网格 + 差分谷拆分 + 击球锚定(收紧)",
  "rallies": [
   {
    "id": 1,
-   "start_s": 7.6,
-   "end_s": 17.1
+   "start_s": 8.0,
+   "end_s": 16.0
   },
   {
    "id": 2,
    "start_s": 26.7,
-   "end_s": 33.7
+   "end_s": 32.0
+  },
+  {
+   "id": 3,
+   "start_s": 44.0,
+   "end_s": 45.0
   }
  ]
 }
