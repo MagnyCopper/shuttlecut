@@ -10,7 +10,18 @@ MP4 → 15fps 抽帧(缓存) → LK-RANSAC 全局运动补偿差分
     → ffmpeg 硬编出片(片段 + 集锦)
 ```
 
-实测成绩(官方口径 `src/shuttlecut/eval/evaluate.py`,tol 2.5s / 重叠 ≥0.5×较长段):
+实测成绩(官方口径 `src/shuttlecut/eval/evaluate.py`,tol 2.5s / 重叠 ≥0.5×较长段;多模型边界投票配方):
+
+| 场景 | P / R |
+|---|---|
+| 训练集内视频(E12,10 视频 v4 GT) | 0.83~1.00 |
+| 新视频同场馆家族(零训练) | 0.15~0.54(边界方差墙,见下) |
+| 新视频跨场馆 tol 5s | 0.49 / 0.61 |
+| 新视频 + 测试时自适配(TTA) | 最高 0.39/0.46(单视频有效不稳定) |
+
+> 诚实结论(14 路线实验档案):R3D-18 W64 范式下跨视频边界方差 ±4-5s 不可后处理修复;
+> 0.90 跨场馆目标需新范式(时序 Transformer/光流,见 docs/eval-history.md 尾部)。
+同场馆新视频可用 `--tune` 自微调补强。
 
 | 场景 | P / R |
 |---|---|
@@ -41,7 +52,11 @@ winget install Gyan.FFmpeg     # 新开终端后 ffmpeg -version 验证
 ## 使用
 
 ```powershell
-# 零训练出片(核心用法)
+# 零训练出片(单模型)
+shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\<ckpt>.pt
+
+# 推荐生产配方:3 种子边界投票(实测最佳跨视频配置)
+shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\r3d_e12_s13.pt,models\r3d_e12_s42.pt,models\r3d_e12_s7.pt
 shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\<ckpt>.pt
 
 # 评测(官方口径)

@@ -117,6 +117,33 @@ def two_scale_segments(coarse_centers: np.ndarray, coarse_probs: np.ndarray,
     return out
 
 
+def boundary_vote(seg_lists: list[list[tuple[float, float]]],
+                 min_gap_s: float = 1.0) -> list[tuple[float, float]]:
+    """多模型边界投票:以首模型段为锚,各模型重叠段边界取中位数(实验验证的集成配方)。"""
+    if not seg_lists or not seg_lists[0]:
+        return []
+    voted = []
+    for a, b in seg_lists[0]:
+        starts, ends = [a], [b]
+        for segs in seg_lists[1:]:
+            ov = [(x, y) for x, y in segs if min(y, b) - max(x, a) > 0.25 * (b - a)]
+            if ov:
+                x, y = max(ov, key=lambda q: q[1] - q[0])
+                starts.append(x)
+                ends.append(y)
+        na, nb = float(np.median(starts)), float(np.median(ends))
+        if nb - na >= 2.5:
+            voted.append((na, nb))
+    merged: list[list[float]] = []
+    for s, e in sorted(voted):
+        if merged and s <= merged[-1][1] + min_gap_s:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(float(s), float(e)) for s, e in merged]
+
+
+
 def extract_frames15(video: str, out_dir: str) -> list[str]:
     """Cached 15fps/960-wide frame extraction for temporal models."""
     d = Path(out_dir)

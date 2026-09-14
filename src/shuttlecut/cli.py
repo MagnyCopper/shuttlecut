@@ -46,21 +46,31 @@ def process_one(video: str, out_root: str, args) -> int:
     work = Path("temp/work") / stem
     outdir.mkdir(parents=True, exist_ok=True)
 
-    ckpt = args.temporal_ckpt or f"models/r3d_{stem}_w64.pt"
-    if not Path(ckpt).exists():
-        print(f"[error] 未找到时序模型 {ckpt};请先用 tools/cuda/train_heavy.py 训练,"
-              f"或用 --temporal-ckpt 指定路径")
-        return 1
+    ckpts = [c for c in (args.temporal_ckpt or f"models/r3d_{stem}_w64.pt").split(",") if c.strip()]
+    for ck in ckpts:
+        if not Path(ck).exists():
+            print(f"[error] 未找到时序模型 {ck};请先用 tools/cuda/train_heavy.py 训练,"
+                  f"或用 --temporal-ckpt 指定路径(多模型逗号分隔启用边界投票)")
+            return 1
+    ckpt = ckpts[0]
     fine_ckpt = args.fine_ckpt or f"models/r3d_{stem}_w24.pt"
 
     frames = extract_frames15(video, str(work / "frames15"))
-    print(f"[temporal] {len(frames)} 帧 @15fps,模型 {ckpt}")
-    centers, probs = infer_curve(frames, ckpt, device=args.device)
+    print(f"[temporal] {len(frames)} 帧 @15fps,模型 {','.join(ckpts)}")
+    curves = [infer_curve(frames, ck, device=args.device) for ck in ckpts]
+    centers, probs = curves[0]
 
     fine = (infer_curve(frames, fine_ckpt, win=24, tsub=2, device=args.device)
             if Path(fine_ckpt).exists() else (None, None))
 
-    segs = two_scale_segments(centers, probs, fine[0], fine[1])
+    from shuttlecut.temporal import TWO_SCALE_DEFAULTS
+    tune = {**TWO_SCALE_DEFAULTS, "sm": 9, "lo": 0.3, "min_len_s": 1.0, "mg": 2.0}
+    if len(curves) > 1:
+        from shuttlecut.temporal import boundary_vote
+        segs = boundary_vote([two_scale_segments(c, p, fine[0], fine[1], **tune)
+                              for c, p in curves])
+    else:
+        segs = two_scale_segments(centers, probs, fine[0], fine[1], **tune)
     rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
                for a, b in segs]
     clips = export_clips(video, rallies, str(outdir / "clips"))
@@ -77,11 +87,10 @@ def process_one(video: str, out_root: str, args) -> int:
     except Exception as e:  # 无音轨/ffmpeg 异常时降级为纯视觉评分
         print(f"[warn] 音频击球特征不可用: {e}")
     ranked = score_rallies(segs, centers, probs, hit_times=hits)
-    ranked = score_rallies(segs, centers, probs)
     payload = {
         "video": stem,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "params": {"mode": "temporal", "ckpt": ckpt},
+        "params": {"mode": "temporal", "ckpt": ",".join(ckpts)},
         "rallies": [{"id": i + 1, "start_s": round(r.start, 2), "end_s": round(r.end, 2)}
                     for i, r in enumerate(rallies)],
         "ranking": [{"rank": r.rank, "rally_id": i + 1, "start_s": round(r.start, 2),
