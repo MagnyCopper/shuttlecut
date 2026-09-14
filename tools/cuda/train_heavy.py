@@ -99,6 +99,7 @@ def main():
     ap.add_argument("--mixstyle", action="store_true", help="训练期域风格混合增广(v2 轨 A/E2)")
     ap.add_argument("--resume", action="store_true", help="warm-start from <out>.last if present")
     ap.add_argument("--seed", type=int, default=13)
+    ap.add_argument("--init", default=None, help="warm-start ckpt")
     a = ap.parse_args()
     torch.manual_seed(a.seed)
     random.seed(a.seed)
@@ -145,7 +146,11 @@ def main():
     trn = [items[i] for i in perm[n_val:]]
 
     dev = {"auto": "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"), "cuda": "cuda", "mps": "mps", "cpu": "cpu"}[a.device]
-    model, in_size = build_backbone(a.backbone, pretrained=True)
+    model, in_size = build_backbone(a.backbone, pretrained=not a.init)
+    model = model.to(dev)
+    if a.init:
+        model.load_state_dict(torch.load(a.init, map_location=dev, weights_only=True))
+        print(f"[init] warm-start from {a.init}", flush=True)
     model = model.to(dev)
     if a.mixstyle:
         from mixstyle import attach
