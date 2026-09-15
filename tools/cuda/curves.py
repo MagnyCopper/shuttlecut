@@ -25,15 +25,18 @@ def main():
     ap.add_argument("--backbone", default="r3d_18", choices=["r3d_18", "x3d_s"])
     ap.add_argument("--device", default="cuda", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--out-dir", default="artifacts/curves", help="概率曲线输出目录")
+    ap.add_argument("--input", default="diff", choices=["diff", "flow"], help="输入信号")
     a = ap.parse_args()
 
     import train_heavy as th
     files = sorted(Path(a.frames).glob("frame_*.jpg"))
     n = len(files)
-    cache = Path(a.frames).parent / "diffs_cache.npy"
+    cache = Path(a.frames).parent / ("flow_cache.npy" if a.input == "flow" else "diffs_cache.npy")
     if cache.exists():
         diffs = np.load(cache).astype(np.float32)
     else:
+        if a.input == "flow":
+            raise SystemExit(f"缺 {cache};先跑 temp/extract_flow.py")
         store = np.zeros((n, 90, 160), np.uint8)
         for i, f in enumerate(files):
             store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))

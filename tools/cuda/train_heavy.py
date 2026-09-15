@@ -100,6 +100,7 @@ def main():
     ap.add_argument("--resume", action="store_true", help="warm-start from <out>.last if present")
     ap.add_argument("--seed", type=int, default=13)
     ap.add_argument("--init", default=None, help="warm-start ckpt")
+    ap.add_argument("--input", default="diff", choices=["diff", "flow"], help="输入信号:差分或 RAFT 光流幅值")
     a = ap.parse_args()
     torch.manual_seed(a.seed)
     random.seed(a.seed)
@@ -119,11 +120,13 @@ def main():
         for x0, x1 in segs:
             cov[(ts >= x0) & (ts <= x1)] = 1.0
         store = np.zeros((n, 90, 160), np.uint8)
-        cache = Path(fdir).parent / "diffs_cache.npy"
+        cache = Path(fdir).parent / ("flow_cache.npy" if a.input == "flow" else "diffs_cache.npy")
         if cache.exists():
             d = np.load(cache).astype(np.float32)
-            print(f"[cache] {fdir}: {d.shape}", flush=True)
+            print(f"[cache] {fdir}: {d.shape} ({a.input})", flush=True)
         else:
+            if a.input == "flow":
+                raise SystemExit(f"缺 {cache};先跑 temp/extract_flow.py")
             for i, f in enumerate(files):
                 store[i] = cv2.resize(cv2.imread(str(f), cv2.IMREAD_GRAYSCALE), (160, 90))
             d = build_diffs(store)
