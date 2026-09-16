@@ -265,3 +265,9 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - yygq 中间带 93 格全判完(93/93 PLAYING);verdicts 700 格全落盘(高置信带 592 由先验+抽查背书)。
 - 组装预览:336 跨度,19 巨段(915s,10%)待条带细化(~51 调用)。
 - 下一步:①jiguang 中间带 74 格 ②yygq/jiguang 巨段条带细化 ③组装 GT v4 语义 ④E15 = 10 DJI + linzhou + yygq + jiguang(15 视频,场馆 3→5)× 3 种子 + 全范式(R3D 投票/VMAE/TAL)重审。
+
+## Session 10(B站全量入库 + E16 启动,2026-09-16/17)
+- jiguang 中间带 51 格判完(50 PLAYING/1 NOT)→ GT 204 段(碎段化风险入账,E5 曲线在该场馆弱)。
+- yygq 19 巨段 54 条带精判替换 → v4 终版 326 回合(均长 9s,仅 3 真连续段)。
+- E15(旧粗 yygq 标签)启动后在 epoch1 止损终止;**E16 链(PID 33532)以 13 视频(10 DJI+linzhou+yygq v4+jiguang)× 3 种子重训中**,~12-14h,标记 temp/logs/e16.done。
+- 下期:E16 终审(单种+投票)vs E12/E13 基线 → 若增益则 VMAE/TAL 在 15 视频池重训 → 终榜。
