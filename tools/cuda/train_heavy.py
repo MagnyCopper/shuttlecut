@@ -210,7 +210,11 @@ def main():
             best = auc
             torch.save(model.state_dict(), a.out)
         torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "ep": ep, "best": best}, last_path)  # 每轮末态+续训状态
-    print("best:", best)
+    print("best:", best, flush=True)
+    import os
+    torch.cuda.empty_cache()
+    sys.stdout.flush()
+    os._exit(0)  # 分离进程下 CUDA/DataLoader 清理可能挂起;强制退出防卡链
 
 
 if __name__ == "__main__":
