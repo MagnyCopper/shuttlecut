@@ -34,6 +34,16 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("rallies_json")
     ev.add_argument("--gt", required=True)
     ev.add_argument("--record", default=None)
+
+    cb = sub.add_parser("calibrate", help="5 分钟人工校准:条带标注→TTA 自适配→专属模型")
+    cb.add_argument("video")
+    cb.add_argument("--phase", choices=["prepare", "run"], default="prepare",
+                   help="prepare=渲染条带+模板;run=读标注→TTA→适配模型")
+    cb.add_argument("--strips", type=int, default=40, help="条带数(默认 40,帧间隔约 3s,对齐验证协议)")
+    cb.add_argument("--calib", default=None, help="run 阶段:标注 JSON 路径")
+    cb.add_argument("--ckpt", default=None, help="基础模型(默认 models/r3d_e16_s13.pt 或 stem 查找)")
+    cb.add_argument("--epochs", type=int, default=3)
+    cb.add_argument("--lr", type=float, default=5e-5)
     return p
 
 
@@ -115,6 +125,98 @@ def process_one(video: str, out_root: str, args) -> int:
               f"({b.features.duration_s:.0f}s, peak={b.features.peak:.2f})")
     return 0
 
+def calibrate_cmd(args) -> int:
+    """5 分钟校准协议:prepare 渲染条带+模板 → 人工标注 → run 组装 GT+TTA 适配。"""
+    import subprocess
+    import sys
+    from shuttlecut.ffmpeg import probe
+    from shuttlecut.temporal import extract_frames15
+
+    stem = Path(args.video).stem
+    outdir = Path("outputs") / stem / "calib"
+    outdir.mkdir(parents=True, exist_ok=True)
+    work = Path("temp/work") / stem
+    meta = probe(args.video)
+
+    if args.phase == "prepare":
+        frames = extract_frames15(args.video, str(work / "frames15"))
+        n = len(frames)
+        span = meta.duration_s / args.strips  # 每条带覆盖秒数
+        import cv2
+        tmpl = []
+        step = min(3.0, span * 0.84 / 5)  # 帧间隔优先 3s(验证协议),短跨度自适应
+        for i in range(args.strips):
+            t0 = i * span + span * 0.08
+            times = [t0 + k * step for k in range(6)]  # 6 帧集中(3s 间隔,覆盖 ~15s)
+        import cv2
+        tmpl = []
+        for i in range(args.strips):
+            t0 = i * span + span * 0.08
+            times = [t0 + k * (span * 0.84) / 5 for k in range(6)]  # 6 帧均布
+            imgs = []
+            for j, t in enumerate(times):
+                f = outdir / f"tmp_{i:02d}_{j}.jpg"
+                subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{t:.1f}", "-i", args.video,
+                                "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", str(f)], check=True)
+                imgs.append(f.name)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y",
+                            "-i", str(outdir / imgs[0]), "-i", str(outdir / imgs[1]), "-i", str(outdir / imgs[2]),
+                            "-i", str(outdir / imgs[3]), "-i", str(outdir / imgs[4]), "-i", str(outdir / imgs[5]),
+                            "-filter_complex",
+                            "[0][1][2][3][4][5]xstack=inputs=6:layout=0_0|w0_0|w0+w1_0|0_h0|w0_h0|w0+w1_h0",
+                            "-q:v", "4", str(outdir / f"strip_{i:02d}.jpg")], check=True)
+            for f in imgs:
+                (outdir / f).unlink(missing_ok=True)
+            tmpl.append({"strip": i, "times": [round(t, 1) for t in times],
+                         "verdict": "YYYYYY"})  # 用户改 Y/N
+        (outdir / "calib_template.json").write_text(
+            json.dumps({"video": stem, "strips": tmpl}, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"[calibrate] {args.strips} 张条带 → {outdir}\n"
+              f"请逐张查看 strip_XX.jpg,把模板中 verdict 改为 6 值 Y/N 序列(是/停顿),",
+              f"保存为 {outdir}/calib.json 后运行:shuttlecut calibrate {args.video} --phase run --calib {outdir}/calib.json")
+        return 0
+
+    # run 阶段
+    calib = json.loads(Path(args.calib).read_text(encoding="utf-8"))
+    segs = []
+    for s in calib["strips"]:
+        v = s["verdict"].upper().replace(" ", "")
+        step = max((s["times"][-1] - s["times"][0]) / max(len(v) - 1, 1), 4.5)  # 段宽下限 4.5s>训练窗(64帧=4.27s)
+        for k, ch in enumerate(v):
+            if ch == "Y":
+                t = s["times"][0] + k * step
+                segs.append((t - step / 2, t + step / 2))
+    merged = []
+    for a, b in sorted(segs):
+        if merged and a <= merged[-1][1] + 1.0:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    merged = [(round(a, 1), round(b, 1)) for a, b in merged if b - a >= 2.5]
+    gt_path = outdir / "calib_gt.json"
+    gt_path.write_text(json.dumps({"video": stem, "source": "calibrate 协议",
+                                   "rallies": [{"id": i, "start_s": a, "end_s": b} for i, (a, b) in enumerate(merged, 1)]},
+                                  ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"[calibrate] 标注组装 {len(merged)} 回合 → {gt_path}")
+
+    ckpt = args.ckpt or "models/r3d_e16_s13.pt"
+    if not Path(ckpt).exists():
+        print(f"[error] 基础模型不存在: {ckpt}")
+        return 1
+    adapted = f"models/r3d_{stem}_calib.pt"
+    r = subprocess.run([sys.executable, "tools/cuda/train_heavy.py",
+                        "--frames", str(work / "frames15"), "--gt", str(gt_path),
+                        "--init", ckpt, "--out", adapted, "--win", "64",
+                        "--epochs", str(args.epochs), "--batch", "8",
+                        "--device", "cuda", "--seed", "42", "--lr", str(args.lr)],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"[error] TTA 失败: {(r.stderr or r.stdout).strip().splitlines()[-1]}")
+        return 1
+    print(f"[calibrate] 适配模型 → {adapted}")
+    print(f"[next] shuttlecut process {args.video} --temporal-ckpt {adapted}")
+    return 0
+
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
@@ -159,5 +261,9 @@ def main(argv: list[str] | None = None) -> int:
                 f.write(f"| {datetime.now().isoformat(timespec='seconds')} | {args.rallies_json} | "
                         f"{rep.recall:.3f} | {rep.precision:.3f} | {rep.mae_s:.2f}s | {verdict} |\n")
         return 0 if verdict == "PASS" else 2
+    if args.cmd == "calibrate":
+        return calibrate_cmd(args)
+    print("该子命令在后续任务实现")
+    return 0
     print("该子命令在后续任务实现")
     return 0

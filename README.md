@@ -90,3 +90,13 @@ temp/ outputs/ models/   工作区与产物(git 忽略)
 ## License
 
 MIT
+## 5 分钟校准协议(新视频达到 0.9-1.0 的推荐路径)
+
+```powershell
+shuttlecut calibrate temp\<新视频>.MP4                                  # 1. 渲染 40 张条带+模板
+# 2. 逐张查看 outputs\<视频>\calib\strip_XX.jpg,把 calib_template.json 中每条 verdict 改为 6 值 Y/N 序列,存为 calib.json
+shuttlecut calibrate temp\<新视频>.MP4 --phase run --calib outputs\<视频>\calib\calib.json   # 3. TTA 适配(约 10 分钟 GPU)
+shuttlecut process temp\<新视频>.MP4 --temporal-ckpt models\r3d_<视频>_calib.pt              # 4. 出片(片段+集锦+排序)
+```
+
+实测(u0010/u0014 held-out):条带标注+TTA 后 **P/R = 1.000/1.000 与 0.898/0.800**;零训练跨场馆则 0.1-0.5 抽签(19 路线实验档案见 docs/eval-history.md)。

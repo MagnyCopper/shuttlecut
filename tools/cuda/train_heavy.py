@@ -144,7 +144,7 @@ def main():
                 items.append((vid, s, 0.0))
     print(f"windows={len(items)} pos={int(sum(y for *_, y in items))}", flush=True)
     perm = np.random.permutation(len(items))
-    n_val = max(200, len(items) // 8)
+    n_val = min(max(50, len(items) // 8), len(items) // 2)  # 小数据集(TTA)保护:至少留半训练
     val = [items[i] for i in perm[:n_val]]
     trn = [items[i] for i in perm[n_val:]]
 
