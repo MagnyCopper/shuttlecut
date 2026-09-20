@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="输出目录(默认: ./shuttlecut-output)")
     pr.add_argument("--model", default=None, metavar="CKPT[,CKPT...]",
                     help="时序模型 ckpt;逗号分隔多模型启用边界投票。"
-                            "默认自动查找: models/r3d_<stem>_calib.pt(校准模型优先) → models/r3d_e16_s13.pt")
+                            "默认自动查找: models/r3d_<stem>_calib.pt(校准模型优先) → models/shuttlecut.pt(官方默认) → models/r3d_e16_s13.pt")
     pr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     pr.add_argument("--overwrite", action="store_true", help="覆盖已存在的输出")
     pr.add_argument("--write-metadata", action="store_true",
@@ -81,10 +81,17 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+# 官方模型约定(按优先级):
+#   1. models/r3d_<stem>_calib.pt  —— 本视频校准模型(calibrate 产物,最优)
+#   2. models/shuttlecut.pt        —— 用户放置的官方默认模型(推荐命名)
+#   3. models/r3d_e16_s13.pt       —— 本仓库实验遗留名(兼容)
+DEFAULT_MODELS = ("models/shuttlecut.pt", "models/r3d_e16_s13.pt")
+
+
 def _resolve_models(stem: str, model_arg: str | None) -> list[str]:
     if model_arg:
         return [m.strip() for m in model_arg.split(",") if m.strip()]
-    for cand in (f"models/r3d_{stem}_calib.pt", "models/r3d_e16_s13.pt"):
+    for cand in (f"models/r3d_{stem}_calib.pt", *DEFAULT_MODELS):
         if Path(cand).exists():
             return [cand]
     return []

@@ -102,3 +102,7 @@ shuttlecut process temp\<新视频>.MP4                                    # 4. 
 shuttlecut eval shuttlecut-output\<视频>-rallies.json --gt data\ground_truth\<视频>.json   # 官方口径评测(需 --write-metadata)
 shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>                              # 真值标注辅助
 ```
+# 模型获取(二选一)
+- 已有官方模型:放到 `models/shuttlecut.pt`(process 零参数自动使用)
+- 自行训练:`tools/cuda/train_heavy.py`(见 tools/cuda/README.md),产物重命名/软链为 `models/shuttlecut.pt`
+- 新视频效果提升:跑一次 `shuttlecut calibrate`(生成该视频专属模型,自动优先使用)
