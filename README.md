@@ -122,3 +122,15 @@ models/
 3. **晋升**:`Copy-Item models/exp/<胜出者>.pt models/shuttlecut.pt`
 4. **使用**:`shuttlecut process 视频.MP4` 零参数(校准模型 → 官方模型依次自动查找);多模型投票属高级用法 `--model models/exp/a.pt,models/exp/b.pt`
 5. **校准**:`shuttlecut calibrate 视频.MP4` 产出 `models/shuttlecut-<stem>.pt`,该视频后续 process 自动使用
+完整文档索引:
+- `README.md` —— 人类用户快速上手
+- `docs/llm-guide.md` —— **Agent/LLM 操作手册**(流程决策/标注协议/流契约/异常处置)
+- `docs/eval-history.md` —— 实验台账(19 路线档案)
+- `tools/cuda/README.md` —— 训练工具手册
+
+## 完整文档索引
+- `README.md` —— 人类用户快速上手
+- `docs/llm-guide.md` —— **Agent/LLM 操作手册**(流程决策/标注协议/流契约/异常处置,自动化操作前必读)
+- `docs/eval-history.md` —— 实验台账(19 路线完整档案)
+- `tools/cuda/README.md` —— 训练工具手册
+- `AGENTS.md` —— 工程规约(模型命名/CLI 契约/质量基线)

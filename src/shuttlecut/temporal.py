@@ -159,15 +159,30 @@ def extract_frames15(video: str, out_dir: str) -> list[str]:
     return sorted(str(p) for p in d.glob("frame_*.jpg"))
 
 
-def infer_curve(frames: list[str], ckpt: str, win: int = 64, tsub: int = 4,
-                batch: int = 8, device: str = "auto") -> tuple[np.ndarray, np.ndarray]:
-    """Sliding-window R3D inference → (centres_s, probs). Heavy: torch import deferred."""
-    import torch
-
+def load_diffs(frames: list[str], cache_path: str | None = None,
+                 progress=None) -> np.ndarray:
+    """帧→差分;cache_path 命中则直接加载(f16),否则计算并可保存。多模型共享。"""
+    if cache_path and Path(cache_path).exists():
+        return np.load(cache_path).astype(np.float32)
     store = np.zeros((len(frames), H, W), np.uint8)
     for i, f in enumerate(frames):
         store[i] = cv2.resize(cv2.imread(f, cv2.IMREAD_GRAYSCALE), (W, H))
+        if progress and (i + 1) % 500 == 0:
+            progress(f"帧读取 {i + 1}/{len(frames)}")
     diffs = build_diffs(store)
+    if cache_path:
+        np.save(cache_path, diffs.astype(np.float16))
+    return diffs
+
+
+def infer_curve(frames: list[str], ckpt: str, win: int = 64, tsub: int = 4,
+                batch: int = 8, device: str = "auto", diffs: np.ndarray | None = None,
+                progress=None) -> tuple[np.ndarray, np.ndarray]:
+    """Sliding-window R3D inference → (centres_s, probs). Heavy: torch import deferred."""
+    import torch
+
+    if diffs is None:
+        diffs = load_diffs(frames)
 
     if device == "auto":
         device = ("mps" if torch.backends.mps.is_available()
@@ -181,6 +196,8 @@ def infer_curve(frames: list[str], ckpt: str, win: int = 64, tsub: int = 4,
 
     starts = list(range(0, len(frames) - win + 1, 2))
     probs, centers = [], []
+    nbatch = (len(starts) + batch - 1) // batch
+    done = 0
     with torch.no_grad():
         for k in range(0, len(starts), batch):
             xs = []
@@ -194,4 +211,7 @@ def infer_curve(frames: list[str], ckpt: str, win: int = 64, tsub: int = 4,
             p = torch.sigmoid(model(x)).squeeze(-1).float().cpu().numpy().reshape(-1)
             probs.extend(p.tolist())
             centers.extend([(s + win / 2) / 15.0 for s in starts[k:k + batch]])
+            done += 1
+            if progress and (done % 25 == 0 or done == nbatch):
+                progress(f"{done * 100 // nbatch}%")
     return np.array(centers), np.array(probs, dtype=np.float64)

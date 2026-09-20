@@ -128,10 +128,21 @@ def process_one(video: str, out_root: str, args) -> int:
         if not args.quiet:
             print(msg, file=sys.stderr)
 
-    from shuttlecut.temporal import TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15, infer_curve, two_scale_segments
+    from shuttlecut.temporal import (TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15,
+                                    infer_curve, load_diffs, two_scale_segments)
     frames = extract_frames15(video, str(work / "frames15"))
-    progress(f"[1/4] {len(frames)} 帧 @15fps | 模型 {','.join(Path(c).name for c in ckpts)}")
-    curves = [infer_curve(frames, ck, device=args.device) for ck in ckpts]
+    if not args.quiet:
+        print(f"配置: {meta.width}x{meta.height} @ {meta.fps:.0f}fps, {meta.duration_s:.0f}s "
+              f"| 模型 {len(ckpts)} 个({','.join(Path(c).name for c in ckpts)}) "
+              f"| 设备 {args.device} | 输出 {outdir}", file=sys.stderr)
+    curves = []
+    if len(ckpts) > 1 or not (work / "diffs_cache.npy").exists():
+        progress(f"[1/5] 帧准备 {len(frames)} 帧…")
+    diffs = load_diffs(frames, str(work / "diffs_cache.npy"),
+                       progress=lambda m: progress(f"[1/5] {m}"))
+    for mi, ck in enumerate(ckpts, 1):
+        curves.append(infer_curve(frames, ck, device=args.device, batch=16 if args.device in ("auto", "cuda") else 8,
+                                  diffs=diffs, progress=lambda m: progress(f"[2/5] 模型 {mi}/{len(ckpts)}: {m}")))
     centers, probs = curves[0]
 
     tune = {**TWO_SCALE_DEFAULTS, "sm": 9, "lo": 0.3, "min_len_s": 1.0, "mg": 2.0}
@@ -142,7 +153,7 @@ def process_one(video: str, out_root: str, args) -> int:
     if not segs:
         _err("未检出任何回合")
         return 1
-    progress(f"[2/4] 检出 {len(segs)} 个回合")
+    progress(f"[3/5] 切分完成: {len(segs)} 个回合")
 
     from shuttlecut.rank import score_rallies, top_rallies
     hits = None
@@ -155,11 +166,13 @@ def process_one(video: str, out_root: str, args) -> int:
         progress(f"[warn] 音频特征不可用: {e}")
     ranked = score_rallies(segs, centers, probs, hit_times=hits)
 
-    progress(f"[3/4] 切片编码中…")
+    progress(f"[4/5] 切片编码…")
     rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
                for a, b in segs]
-    clips = export_clips(video, rallies, str(work / "cut"))
+    clips = export_clips(video, rallies, str(work / "cut"),
+                         progress=lambda i, n: progress(f"[4/5] 切片 {i}/{n}"))
     export_reel(clips, str(all_path), list_dir=str(work))
+    progress(f"[5/5] 合并集锦…")
     top = top_rallies(ranked)
     pos = {id(r): i for i, r in enumerate(ranked)}
     top_clips = [clips[pos[id(r)]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
@@ -234,6 +247,7 @@ def calibrate_cmd(args) -> int:
         (outdir / "calib_template.json").write_text(
             json.dumps({"video": stem, "strips": tmpl}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"条带已生成 → {outdir}\\strip_XX.jpg")
+        print("标注规范见 docs/llm-guide.md §2(6 帧逐帧 Y/N,只判近场)")
         print(f"逐张查看,把模板中 verdict 改为 6 值 Y/N(是/停顿),保存为 calib.json,然后运行:")
         print(f"  shuttlecut calibrate {args.video} --phase run --calib {outdir / 'calib.json'}")
         return 0

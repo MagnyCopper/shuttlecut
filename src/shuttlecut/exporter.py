@@ -26,7 +26,8 @@ def _video_encoder() -> list[str]:
 
 
 def export_clips(video: str, rallies: list[Rally], out_dir: str,
-                 pre_s: float = 1.5, post_s: float = 2.0) -> list[str]:
+                 pre_s: float = 1.5, post_s: float = 2.0,
+                 progress=None) -> list[str]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     clips: list[str] = []
@@ -42,6 +43,9 @@ def export_clips(video: str, rallies: list[Rally], out_dir: str,
             check=True,
         )
         clips.append(str(dest))
+        if progress:
+            progress(i, len(rallies))
+    return clips
     return clips
 
 
