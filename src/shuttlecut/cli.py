@@ -16,12 +16,37 @@ from pathlib import Path
 from shuttlecut import __version__
 from shuttlecut.ffmpeg import probe
 
-EXAMPLES = """\
+EXAMPLES = """\面向 LLM/Agent 的操作要点(完整手册 docs/llm-guide.md):
+  1. 常规出片 → process;新场馆/质量敏感 → 先 calibrate 再 process
+  2. process 输出恰好 2 个视频;进度在 stderr,摘要在 stdout;长时间无 stdout 属正常
+  3. 模型自动查找,无需指定;退出码 0/1/2 = 成功/失败/用法错
+
 示例:
   shuttlecut process match.mp4                        # 输出 2 个视频到 ./shuttlecut-output/
   shuttlecut process match.mp4 -o exports --overwrite
-  shuttlecut process match.mp4 --model models/exp/m1.pt,models/exp/m2.pt,models/exp/m3.pt
+  shuttlecut process match.mp4 --write-metadata      # 额外输出 rallies.json(供 eval)
   shuttlecut calibrate match.mp4                      # 新视频 5 分钟校准(见 calibrate --help)
+"""
+
+PROCESS_EPILOG = """\输出契约(恰好 2 个文件):
+  <out-dir>/<stem>-all-rallies.mp4    全部回合(时间顺序)
+  <out-dir>/<stem>-highlights.mp4     精选回合(精彩度降序)
+流契约:进度/警告→stderr(阶段 [1/5]..[5/5]);摘要+输出路径→stdout。
+模型:默认自动查找 models/shuttlecut-<stem>.pt(校准优先) → models/shuttlecut.pt。
+退出码:0 成功 / 1 失败(输出已存在、模型缺失、未检出回合) / 2 用法错。
+"""
+
+CALIB_EPILOG = """\标注协议(LLM 必读,详见 docs/llm-guide.md §2):
+  每张 strip_XX.jpg 含 6 帧(左上→右下时间递增);逐帧判近场:
+  Y=回合中(对打/发球/击球后取位) N=停顿(捡球/休息/换场/仅远场打)
+  把模板每条 verdict 改为 6 值 Y/N 序列(如 YYNNYY),存为 calib.json 后 run。
+  产物 models/shuttlecut-<stem>.pt,此后 process 自动优先使用。
+
+示例:
+  shuttlecut calibrate match.mp4                                    # phase 1: 出 40 张条带
+  shuttlecut calibrate match.mp4 --phase run --calib \\
+      shuttlecut-output/<stem>/calib/calib.json                     # phase 2: TTA 适配
+  shuttlecut process match.mp4                                      # 出片(自动用校准模型)
 """
 
 
@@ -41,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pr = sub.add_parser(
         "process", help="切分回合并输出 2 个视频(all-rallies + highlights)",
-        epilog=EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
+        epilog=PROCESS_EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     pr.add_argument("videos", nargs="+", metavar="INPUT", help="源视频路径(可多个)")
     pr.add_argument("-o", "--output-dir", default="shuttlecut-output", metavar="DIR",
                     help="输出目录(默认: ./shuttlecut-output)")
@@ -56,8 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     cb = sub.add_parser(
         "calibrate", help="新视频 5 分钟人工校准:条带标注 → TTA 适配模型",
-        description="两步协议:prepare 渲染条带与模板;人工标注后 run 训练专属模型。"
-                    "校准后的视频实测 P/R 0.9-1.0(见 docs/eval-history.md)。")
+        epilog=CALIB_EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     cb.add_argument("video", metavar="INPUT", help="源视频路径")
     cb.add_argument("--phase", choices=["prepare", "run"], default="prepare",
                     help="prepare=渲染条带+模板(默认);run=读标注→TTA→适配模型")
@@ -97,11 +121,20 @@ def _resolve_models(stem: str, model_arg: str | None) -> list[str]:
     return []
 
 
+def _check_input(video: str) -> bool:
+    if not Path(video).exists():
+        _err(f"输入视频不存在: {video}(检查路径/扩展名)")
+        return False
+    return True
+
+
 def process_one(video: str, out_root: str, args) -> int:
     import subprocess
 
     from shuttlecut.exporter import Rally, export_clips, export_reel
 
+    if not _check_input(video):
+        return 1
     stem = Path(video).stem
     meta = probe(video)
     outdir = Path(out_root)
@@ -117,7 +150,7 @@ def process_one(video: str, out_root: str, args) -> int:
 
     ckpts = _resolve_models(stem, args.model)
     if not ckpts:
-        _err("未找到时序模型;请用 --model 指定,或先运行 calibrate / tools/cuda/train_heavy.py")
+        _err("未找到时序模型。放置 models/shuttlecut.pt,或先 calibrate,详见 docs/llm-guide.md §1")
         return 1
     missing = [c for c in ckpts if not Path(c).exists()]
     if missing:
@@ -213,6 +246,9 @@ def calibrate_cmd(args) -> int:
 
     from shuttlecut.ffmpeg import probe
     from shuttlecut.temporal import extract_frames15
+
+    if not _check_input(args.video):
+        return 1
 
     stem = Path(args.video).stem
     outdir = Path("shuttlecut-output") / stem / "calib"
