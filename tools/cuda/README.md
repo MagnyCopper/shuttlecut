@@ -31,11 +31,11 @@ python prep_data.py --video videos/DJI_20260830173600_0025_D.MP4 --gt data/groun
 ```bash
 mkdir -p ckpt
 # B1:64 帧窗(主力)+ 24 帧窗(边界)
-python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w64.pt --win 64
-python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ckpt/r3d_b1_w24.pt --win 24
+python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ../../models/exp/r3d_b1_w64.pt --win 64
+python train_heavy.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --gt data/ground_truth/DJI_20260830153830_0015_D.json --out ../../models/exp/r3d_b1_w24.pt --win 24
 # B2 同理
-python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w64.pt --win 64
-python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ckpt/r3d_b2_w24.pt --win 24
+python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ../../models/exp/r3d_b2_w64.pt --win 64
+python train_heavy.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --gt data/ground_truth/DJI_20260830173600_0025_D.json --out ../../models/exp/r3d_b2_w24.pt --win 24
 ```
 
 VRAM 不足时加 `--batch 4`。
@@ -43,10 +43,10 @@ VRAM 不足时加 `--batch 4`。
 ## 曲线 + 官方口径评测
 
 ```bash
-python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w64.pt --win 64 --tag b1r3d64
-python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ckpt/r3d_b1_w24.pt --win 24 --tag b1r3d24
-python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w64.pt --win 64 --tag b2r3d64
-python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ckpt/r3d_b2_w24.pt --win 24 --tag b2r3d24
+python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ../../models/exp/r3d_b1_w64.pt --win 64 --tag b1r3d64
+python curves.py --frames temp/work/DJI_20260830153830_0015_D/frames15 --ckpt ../../models/exp/r3d_b1_w24.pt --win 24 --tag b1r3d24
+python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ../../models/exp/r3d_b2_w64.pt --win 64 --tag b2r3d64
+python curves.py --frames temp/work/DJI_20260830173600_0025_D/frames15 --ckpt ../../models/exp/r3d_b2_w24.pt --win 24 --tag b2r3d24
 
 python segment_eval.py --gt data/ground_truth/DJI_20260830153830_0015_D.json --tag b1r3d64 --grid
 python segment_eval.py --gt data/ground_truth/DJI_20260830173600_0025_D.json --tag b2r3d64 --grid
@@ -96,7 +96,7 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 
 # 4. 之后流程与本 README 主体一致(python 命令逐条执行)
 python tools\cuda\prep_data.py --video temp\DJI_20260830153830_0015_D.MP4 --gt data\ground_truth\DJI_20260830153830_0015_D.json
-mkdir ckpt
+# 实验模型一律输出到 models/exp/(命名规范见主 README);官方模型=models/shuttlecut.pt`nmkdir -p ..\..\models\exp
 python tools\cuda\train_heavy.py --frames temp\work\DJI_20260830153830_0015_D\frames15 --gt data\ground_truth\DJI_20260830153830_0015_D.json --out ckpt\r3d_b1_w64.pt --win 64
 # ...(B1/B2 × W64/W24 共 4 次)
 python tools\cuda\curves.py --frames temp\work\DJI_20260830153830_0015_D\frames15 --ckpt ckpt\r3d_b1_w64.pt --win 64 --tag b1r3d64

@@ -20,7 +20,7 @@ EXAMPLES = """\
 示例:
   shuttlecut process match.mp4                        # 输出 2 个视频到 ./shuttlecut-output/
   shuttlecut process match.mp4 -o exports --overwrite
-  shuttlecut process match.mp4 --model models/r3d_e16_s13.pt,models/r3d_e16_s42.pt
+  shuttlecut process match.mp4 --model models/exp/m1.pt,models/exp/m2.pt,models/exp/m3.pt
   shuttlecut calibrate match.mp4                      # 新视频 5 分钟校准(见 calibrate --help)
 """
 
@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="输出目录(默认: ./shuttlecut-output)")
     pr.add_argument("--model", default=None, metavar="CKPT[,CKPT...]",
                     help="时序模型 ckpt;逗号分隔多模型启用边界投票。"
-                            "默认自动查找: models/r3d_<stem>_calib.pt(校准模型优先) → models/shuttlecut.pt(官方默认) → models/r3d_e16_s13.pt")
+                            "默认自动查找: models/shuttlecut-<stem>.pt(校准优先) → models/shuttlecut.pt(官方)")
     pr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     pr.add_argument("--overwrite", action="store_true", help="覆盖已存在的输出")
     pr.add_argument("--write-metadata", action="store_true",
@@ -64,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("--strips", type=int, default=40, metavar="N",
                     help="条带数(默认: 40,约 5 分钟标注量)")
     cb.add_argument("--calib", metavar="FILE", help="run 阶段:标注 JSON 路径")
-    cb.add_argument("--model", metavar="CKPT", help="基础模型(默认: models/r3d_e16_s13.pt)")
+    cb.add_argument("--model", metavar="CKPT", help="基础模型(默认: models/shuttlecut.pt)")
     cb.add_argument("--epochs", type=int, default=3, metavar="N", help="TTA 轮数(默认: 3)")
     cb.add_argument("--lr", type=float, default=5e-5, metavar="LR", help="TTA 学习率(默认: 5e-5)")
 
@@ -81,17 +81,17 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-# 官方模型约定(按优先级):
-#   1. models/r3d_<stem>_calib.pt  —— 本视频校准模型(calibrate 产物,最优)
-#   2. models/shuttlecut.pt        —— 用户放置的官方默认模型(推荐命名)
-#   3. models/r3d_e16_s13.pt       —— 本仓库实验遗留名(兼容)
-DEFAULT_MODELS = ("models/shuttlecut.pt", "models/r3d_e16_s13.pt")
+# 模型命名规范(全链路):
+#   models/shuttlecut.pt          —— 官方生产模型(唯一默认;由 models/exp/ 评审后晋升)
+#   models/shuttlecut-<stem>.pt   —— 视频专属校准模型(calibrate 产物,存在则优先)
+#   models/exp/<tag>.pt           —— 实验沙盒(train_heavy 直接产物,不对外)
+DEFAULT_MODELS = ("models/shuttlecut.pt",)
 
 
 def _resolve_models(stem: str, model_arg: str | None) -> list[str]:
     if model_arg:
         return [m.strip() for m in model_arg.split(",") if m.strip()]
-    for cand in (f"models/r3d_{stem}_calib.pt", *DEFAULT_MODELS):
+    for cand in (f"models/shuttlecut-{stem}.pt", *DEFAULT_MODELS):
         if Path(cand).exists():
             return [cand]
     return []
@@ -261,11 +261,11 @@ def calibrate_cmd(args) -> int:
                                   ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"标注组装 {len(merged)} 回合 → {gt_path}")
 
-    ckpt = args.model or "models/r3d_e16_s13.pt"
+    ckpt = args.model or ("models/shuttlecut.pt" if Path("models/shuttlecut.pt").exists() else "models/exp/r3d_e16_s13.pt")
     if not Path(ckpt).exists():
         _err(f"基础模型不存在: {ckpt}")
         return 1
-    adapted = f"models/r3d_{stem}_calib.pt"
+    adapted = f"models/shuttlecut-{stem}.pt"
     r = subprocess.run([_sys.executable, "tools/cuda/train_heavy.py",
                         "--frames", str(work / "frames15"), "--gt", str(gt_path),
                         "--init", ckpt, "--out", adapted, "--win", "64",

@@ -106,3 +106,19 @@ shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>                
 - 已有官方模型:放到 `models/shuttlecut.pt`(process 零参数自动使用)
 - 自行训练:`tools/cuda/train_heavy.py`(见 tools/cuda/README.md),产物重命名/软链为 `models/shuttlecut.pt`
 - 新视频效果提升:跑一次 `shuttlecut calibrate`(生成该视频专属模型,自动优先使用)
+
+## 模型命名规范(训练 → 晋升 → 使用)
+
+```
+models/
+  shuttlecut.pt          # 官方生产模型:process 的唯一默认
+  shuttlecut-<stem>.pt   # 视频专属校准模型:calibrate 产物,存在则自动优先
+  exp/                   # 实验沙盒:train_heavy 直接产物,不参与任何自动查找
+```
+
+生命周期:
+1. **训练**:`python tools/cuda/train_heavy.py --frames ... --gt ... --out models/exp/<tag>.pt`(实验模型一律入 exp/)
+2. **评审**:`tools/cuda/curves.py + segment_eval.py` 对比基线(docs/eval-history.md 台账记录)
+3. **晋升**:`Copy-Item models/exp/<胜出者>.pt models/shuttlecut.pt`
+4. **使用**:`shuttlecut process 视频.MP4` 零参数(校准模型 → 官方模型依次自动查找);多模型投票属高级用法 `--model models/exp/a.pt,models/exp/b.pt`
+5. **校准**:`shuttlecut calibrate 视频.MP4` 产出 `models/shuttlecut-<stem>.pt`,该视频后续 process 自动使用
