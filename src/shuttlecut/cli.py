@@ -1,158 +1,212 @@
-"""ShuttleCut CLI:时序管线(帧缓存→补偿差分→R3D 概率曲线→两尺度切分→出片)。"""
+"""ShuttleCut CLI.
+
+设计规范(参考 yt-dlp/gh/ruff 社区惯例):
+- 动词式子命令;常用路径零参数可用(process INPUT 即出片)
+- 输出契约固定:process 恰好产出 2 个视频(all-rallies + highlights)
+- 进度/诊断走 stderr,stdout 只留最终摘要
+- 退出码:0 成功 / 1 处理失败 / 2 用法错误(argparse 默认)
+- 副产物(JSON 元数据)仅显式 --write-metadata 生成
+"""
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
 from shuttlecut import __version__
-from shuttlecut.exporter import Rally, export_clips, export_reel
 from shuttlecut.ffmpeg import probe
+
+EXAMPLES = """\
+示例:
+  shuttlecut process match.mp4                        # 输出 2 个视频到 ./shuttlecut-output/
+  shuttlecut process match.mp4 -o exports --overwrite
+  shuttlecut process match.mp4 --model models/r3d_e16_s13.pt,models/r3d_e16_s42.pt
+  shuttlecut calibrate match.mp4                      # 新视频 5 分钟校准(见 calibrate --help)
+"""
+
+
+def _err(msg: str) -> None:
+    print(f"shuttlecut: {msg}", file=sys.stderr)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="shuttlecut", description="羽毛球回合自动剪辑(时序管线)")
-    p.add_argument("--version", action="version", version=__version__)
-    sub = p.add_subparsers(dest="cmd")
+    p = argparse.ArgumentParser(
+        prog="shuttlecut",
+        description="羽毛球整场视频 → 回合合集 + 精彩选集(恰好 2 个输出视频)。",
+        epilog=EXAMPLES,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("-V", "--version", action="version", version=__version__)
+    sub = p.add_subparsers(dest="cmd", metavar="COMMAND")
 
-    pr = sub.add_parser("process", help="时序管线切分回合并导出片段")
-    pr.add_argument("videos", nargs="+")
-    pr.add_argument("--out", default="outputs")
+    pr = sub.add_parser(
+        "process", help="切分回合并输出 2 个视频(all-rallies + highlights)",
+        epilog=EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
+    pr.add_argument("videos", nargs="+", metavar="INPUT")
+    pr.add_argument("-o", "--output-dir", default="shuttlecut-output", metavar="DIR",
+                    help="输出目录(默认: ./shuttlecut-output)")
+    pr.add_argument("--model", default=None, metavar="CKPT[,CKPT...]",
+                    help="时序模型,逗号分隔多模型启用边界投票(默认: 自动查找)")
     pr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
-    pr.add_argument("--temporal-ckpt", default=None,
-                    help="时序 ckpt 路径(默认按 stem 查找 models/r3d_<stem>_w64.pt)")
-    pr.add_argument("--fine-ckpt", default=None,
-                    help="W24 边界模型(默认 models/r3d_<stem>_w24.pt,存在才启用)")
-    pr.add_argument("--no-reel", action="store_true")
+    pr.add_argument("--overwrite", action="store_true", help="覆盖已存在的输出")
+    pr.add_argument("--write-metadata", action="store_true",
+                    help="额外输出 <stem>-rallies.json(时间戳/评分,机器可读)")
+    pr.add_argument("--quiet", action="store_true", help="抑制进度输出(stderr)")
 
-    lb = sub.add_parser("label", help="真值标注辅助工具")
-    lb.add_argument("video")
-    lb.add_argument("--sheets", metavar="OUTDIR", default=None)
-    lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"), default=None)
-    lb.add_argument("--out", default=None, help="保存真值 JSON 路径")
-
-    ev = sub.add_parser("eval", help="对比检测结果与真值")
-    ev.add_argument("rallies_json")
-    ev.add_argument("--gt", required=True)
-    ev.add_argument("--record", default=None)
-
-    cb = sub.add_parser("calibrate", help="5 分钟人工校准:条带标注→TTA 自适配→专属模型")
-    cb.add_argument("video")
+    cb = sub.add_parser(
+        "calibrate", help="新视频 5 分钟人工校准:条带标注 → TTA 适配模型",
+        description="两步协议:prepare 渲染条带与模板;人工标注后 run 训练专属模型。"
+                    "校准后的视频实测 P/R 0.9-1.0(见 docs/eval-history.md)。")
+    cb.add_argument("video", metavar="INPUT")
     cb.add_argument("--phase", choices=["prepare", "run"], default="prepare",
-                   help="prepare=渲染条带+模板;run=读标注→TTA→适配模型")
-    cb.add_argument("--strips", type=int, default=40, help="条带数(默认 40,帧间隔约 3s,对齐验证协议)")
-    cb.add_argument("--calib", default=None, help="run 阶段:标注 JSON 路径")
-    cb.add_argument("--ckpt", default=None, help="基础模型(默认 models/r3d_e16_s13.pt 或 stem 查找)")
-    cb.add_argument("--epochs", type=int, default=3)
-    cb.add_argument("--lr", type=float, default=5e-5)
+                    help="prepare=渲染条带+模板(默认);run=读标注→TTA→适配模型")
+    cb.add_argument("--strips", type=int, default=40, metavar="N",
+                    help="条带数(默认: 40,约 5 分钟标注量)")
+    cb.add_argument("--calib", metavar="FILE", help="run 阶段:标注 JSON 路径")
+    cb.add_argument("--model", metavar="CKPT", help="基础模型(默认: models/r3d_e16_s13.pt)")
+    cb.add_argument("--epochs", type=int, default=3, metavar="N", help="TTA 轮数(默认: 3)")
+    cb.add_argument("--lr", type=float, default=5e-5, metavar="LR", help="TTA 学习率(默认: 5e-5)")
+
+    ev = sub.add_parser("eval", help="对比检测结果与真值(开发用)")
+    ev.add_argument("rallies_json", metavar="JSON")
+    ev.add_argument("--gt", required=True, metavar="GT_JSON")
+    ev.add_argument("--record", metavar="FILE", help="追加结果到 Markdown 表")
+
+    lb = sub.add_parser("label", help="真值标注辅助(开发用)")
+    lb.add_argument("video", metavar="INPUT")
+    lb.add_argument("--sheets", metavar="OUTDIR")
+    lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"))
+    lb.add_argument("--out", metavar="FILE")
     return p
 
 
+def _resolve_models(stem: str, model_arg: str | None) -> list[str]:
+    if model_arg:
+        return [m.strip() for m in model_arg.split(",") if m.strip()]
+    for cand in (f"models/r3d_{stem}_calib.pt", "models/r3d_e16_s13.pt"):
+        if Path(cand).exists():
+            return [cand]
+    return []
+
+
 def process_one(video: str, out_root: str, args) -> int:
-    from shuttlecut.temporal import extract_frames15, infer_curve, two_scale_segments
+    import subprocess
 
-    meta = probe(video)
+    from shuttlecut.exporter import Rally, export_clips, export_reel
+
     stem = Path(video).stem
-    outdir = Path(out_root) / stem
-    work = Path("temp/work") / stem
+    meta = probe(video)
+    outdir = Path(out_root)
     outdir.mkdir(parents=True, exist_ok=True)
+    work = Path("temp/work") / stem
 
-    ckpts = [c for c in (args.temporal_ckpt or f"models/r3d_{stem}_w64.pt").split(",") if c.strip()]
-    for ck in ckpts:
-        if not Path(ck).exists():
-            print(f"[error] 未找到时序模型 {ck};请先用 tools/cuda/train_heavy.py 训练,"
-                  f"或用 --temporal-ckpt 指定路径(多模型逗号分隔启用边界投票)")
+    all_path = outdir / f"{stem}-all-rallies.mp4"
+    hi_path = outdir / f"{stem}-highlights.mp4"
+    for target in (all_path, hi_path):
+        if target.exists() and not args.overwrite:
+            _err(f"输出已存在: {target}(用 --overwrite 覆盖)")
             return 1
-    ckpt = ckpts[0]
-    fine_ckpt = args.fine_ckpt or f"models/r3d_{stem}_w24.pt"
 
+    ckpts = _resolve_models(stem, args.model)
+    if not ckpts:
+        _err("未找到时序模型;请用 --model 指定,或先运行 calibrate / tools/cuda/train_heavy.py")
+        return 1
+    missing = [c for c in ckpts if not Path(c).exists()]
+    if missing:
+        _err(f"模型不存在: {', '.join(missing)}")
+        return 1
+
+    def progress(msg: str) -> None:
+        if not args.quiet:
+            print(msg, file=sys.stderr)
+
+    from shuttlecut.temporal import TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15, infer_curve, two_scale_segments
     frames = extract_frames15(video, str(work / "frames15"))
-    print(f"[temporal] {len(frames)} 帧 @15fps,模型 {','.join(ckpts)}")
+    progress(f"[1/4] {len(frames)} 帧 @15fps | 模型 {','.join(Path(c).name for c in ckpts)}")
     curves = [infer_curve(frames, ck, device=args.device) for ck in ckpts]
     centers, probs = curves[0]
 
-    fine = (infer_curve(frames, fine_ckpt, win=24, tsub=2, device=args.device)
-            if Path(fine_ckpt).exists() else (None, None))
-
-    from shuttlecut.temporal import TWO_SCALE_DEFAULTS
     tune = {**TWO_SCALE_DEFAULTS, "sm": 9, "lo": 0.3, "min_len_s": 1.0, "mg": 2.0}
     if len(curves) > 1:
-        from shuttlecut.temporal import boundary_vote
-        segs = boundary_vote([two_scale_segments(c, p, fine[0], fine[1], **tune)
-                              for c, p in curves])
+        segs = boundary_vote([two_scale_segments(c, p, None, None, **tune) for c, p in curves])
     else:
-        segs = two_scale_segments(centers, probs, fine[0], fine[1], **tune)
-    rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
-               for a, b in segs]
-    clips = export_clips(video, rallies, str(outdir / "clips"))
-    if not args.no_reel and clips:
-        export_reel(clips, str(outdir / "clips" / "highlights.mp4"))
+        segs = two_scale_segments(centers, probs, None, None, **tune)
+    if not segs:
+        _err("未检出任何回合")
+        return 1
+    progress(f"[2/4] 检出 {len(segs)} 个回合")
 
     from shuttlecut.rank import score_rallies, top_rallies
     hits = None
     try:
         from shuttlecut.audio import audio_transients
         from shuttlecut.ffmpeg import extract_audio
-        wav = extract_audio(video, str(outdir / "audio.wav"))
+        wav = extract_audio(video, str(work / "audio.wav"))
         hits = [tr.t for tr in audio_transients(wav)] or None
-    except Exception as e:  # 无音轨/ffmpeg 异常时降级为纯视觉评分
-        print(f"[warn] 音频击球特征不可用: {e}")
+    except Exception as e:  # 无音轨时降级为纯视觉评分
+        progress(f"[warn] 音频特征不可用: {e}")
     ranked = score_rallies(segs, centers, probs, hit_times=hits)
-    payload = {
-        "video": stem,
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "params": {"mode": "temporal", "ckpt": ",".join(ckpts)},
-        "rallies": [{"id": i + 1, "start_s": round(r.start, 2), "end_s": round(r.end, 2)}
-                    for i, r in enumerate(rallies)],
-        "ranking": [{"rank": r.rank, "rally_id": i + 1, "start_s": round(r.start, 2),
-                     "end_s": round(r.end, 2), "score": round(r.score, 3),
-                     "duration_s": round(r.features.duration_s, 2),
-                     "peak": round(r.features.peak, 3), "var": round(r.features.var, 4)}
-                    for i, r in enumerate(ranked)],
-    }
-    (outdir / "rallies.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    if not args.no_reel and clips:
-        top = top_rallies(ranked)
-        pos = {id(r): i for i, r in enumerate(ranked)}
-        top_clips = [clips[pos[id(r)]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
-        if 0 < len(top_clips) < len(clips):
-            export_reel(top_clips, str(outdir / "clips" / "highlights_top.mp4"))
-    total = sum(r.end - r.start for r in rallies)
-    print(f"[summary] {stem}: {meta.duration_s:.0f}s → {len(rallies)} 个回合, "
-          f"共 {total:.0f}s ({total / meta.duration_s * 100:.0f}% 保留)")
+
+    progress(f"[3/4] 切片编码中…")
+    rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
+               for a, b in segs]
+    clips = export_clips(video, rallies, str(work / "cut"))
+    export_reel(clips, str(all_path), list_dir=str(work))
+    top = top_rallies(ranked)
+    pos = {id(r): i for i, r in enumerate(ranked)}
+    top_clips = [clips[pos[id(r)]] for r in sorted(top, key=lambda r: r.rank)]  # 精彩度优先
+    if top_clips and len(top_clips) < len(clips):
+        export_reel(top_clips, str(hi_path), list_dir=str(work))
+    else:
+        hi_path.write_bytes(all_path.read_bytes())  # 全部即精选的退化情形
+
+    if args.write_metadata:
+        payload = {
+            "video": stem,
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "model": [Path(c).name for c in ckpts],
+            "rallies": [{"id": i + 1, "start_s": round(a, 2), "end_s": round(b, 2)}
+                        for i, (a, b) in enumerate(segs)],
+            "ranking": [{"rank": r.rank, "start_s": round(r.start, 2), "end_s": round(r.end, 2),
+                         "score": round(r.score, 3), "duration_s": round(r.features.duration_s, 2)}
+                        for r in ranked],
+        }
+        (outdir / f"{stem}-rallies.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    total = sum(b - a for a, b in segs)
+    print(f"{all_path}")
+    print(f"{hi_path}")
+    print(f"{stem}: {meta.duration_s:.0f}s → {len(segs)} 回合 {total:.0f}s "
+          f"({total / meta.duration_s * 100:.0f}% 保留); 精选 top {len(top)}/{len(segs)}")
     if ranked:
         b = min(ranked, key=lambda r: r.rank)
-        print(f"[top1] 回合 #{b.rank}: {b.start:.0f}-{b.end:.0f}s "
-              f"({b.features.duration_s:.0f}s, peak={b.features.peak:.2f})")
+        print(f"最精彩: {b.start:.0f}-{b.end:.0f}s ({b.features.duration_s:.0f}s)")
     return 0
+
 
 def calibrate_cmd(args) -> int:
     """5 分钟校准协议:prepare 渲染条带+模板 → 人工标注 → run 组装 GT+TTA 适配。"""
     import subprocess
-    import sys
+    import sys as _sys
+
     from shuttlecut.ffmpeg import probe
     from shuttlecut.temporal import extract_frames15
 
     stem = Path(args.video).stem
-    outdir = Path("outputs") / stem / "calib"
+    outdir = Path("shuttlecut-output") / stem / "calib"
     outdir.mkdir(parents=True, exist_ok=True)
     work = Path("temp/work") / stem
     meta = probe(args.video)
 
     if args.phase == "prepare":
-        frames = extract_frames15(args.video, str(work / "frames15"))
-        n = len(frames)
+        extract_frames15(args.video, str(work / "frames15"))
         span = meta.duration_s / args.strips  # 每条带覆盖秒数
-        import cv2
-        tmpl = []
         step = min(3.0, span * 0.84 / 5)  # 帧间隔优先 3s(验证协议),短跨度自适应
+        tmpl = []
         for i in range(args.strips):
             t0 = i * span + span * 0.08
             times = [t0 + k * step for k in range(6)]  # 6 帧集中(3s 间隔,覆盖 ~15s)
-        import cv2
-        tmpl = []
-        for i in range(args.strips):
-            t0 = i * span + span * 0.08
-            times = [t0 + k * (span * 0.84) / 5 for k in range(6)]  # 6 帧均布
             imgs = []
             for j, t in enumerate(times):
                 f = outdir / f"tmp_{i:02d}_{j}.jpg"
@@ -171,12 +225,11 @@ def calibrate_cmd(args) -> int:
                          "verdict": "YYYYYY"})  # 用户改 Y/N
         (outdir / "calib_template.json").write_text(
             json.dumps({"video": stem, "strips": tmpl}, ensure_ascii=False, indent=1), encoding="utf-8")
-        print(f"[calibrate] {args.strips} 张条带 → {outdir}\n"
-              f"请逐张查看 strip_XX.jpg,把模板中 verdict 改为 6 值 Y/N 序列(是/停顿),",
-              f"保存为 {outdir}/calib.json 后运行:shuttlecut calibrate {args.video} --phase run --calib {outdir}/calib.json")
+        print(f"条带已生成 → {outdir}\\strip_XX.jpg")
+        print(f"逐张查看,把模板中 verdict 改为 6 值 Y/N(是/停顿),保存为 calib.json,然后运行:")
+        print(f"  shuttlecut calibrate {args.video} --phase run --calib {outdir / 'calib.json'}")
         return 0
 
-    # run 阶段
     calib = json.loads(Path(args.calib).read_text(encoding="utf-8"))
     segs = []
     for s in calib["strips"]:
@@ -195,26 +248,27 @@ def calibrate_cmd(args) -> int:
     merged = [(round(a, 1), round(b, 1)) for a, b in merged if b - a >= 2.5]
     gt_path = outdir / "calib_gt.json"
     gt_path.write_text(json.dumps({"video": stem, "source": "calibrate 协议",
-                                   "rallies": [{"id": i, "start_s": a, "end_s": b} for i, (a, b) in enumerate(merged, 1)]},
+                                   "rallies": [{"id": i, "start_s": a, "end_s": b}
+                                               for i, (a, b) in enumerate(merged, 1)]},
                                   ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"[calibrate] 标注组装 {len(merged)} 回合 → {gt_path}")
+    print(f"标注组装 {len(merged)} 回合 → {gt_path}")
 
-    ckpt = args.ckpt or "models/r3d_e16_s13.pt"
+    ckpt = args.model or "models/r3d_e16_s13.pt"
     if not Path(ckpt).exists():
-        print(f"[error] 基础模型不存在: {ckpt}")
+        _err(f"基础模型不存在: {ckpt}")
         return 1
     adapted = f"models/r3d_{stem}_calib.pt"
-    r = subprocess.run([sys.executable, "tools/cuda/train_heavy.py",
+    r = subprocess.run([_sys.executable, "tools/cuda/train_heavy.py",
                         "--frames", str(work / "frames15"), "--gt", str(gt_path),
                         "--init", ckpt, "--out", adapted, "--win", "64",
                         "--epochs", str(args.epochs), "--batch", "8",
                         "--device", "cuda", "--seed", "42", "--lr", str(args.lr)],
                        capture_output=True, text=True)
     if r.returncode != 0:
-        print(f"[error] TTA 失败: {(r.stderr or r.stdout).strip().splitlines()[-1]}")
+        _err(f"TTA 失败: {(r.stderr or r.stdout).strip().splitlines()[-1]}")
         return 1
-    print(f"[calibrate] 适配模型 → {adapted}")
-    print(f"[next] shuttlecut process {args.video} --temporal-ckpt {adapted}")
+    print(f"适配模型 → {adapted}")
+    print(f"出片: shuttlecut process {args.video}")
     return 0
 
 
@@ -225,9 +279,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.cmd == "process":
         for video in args.videos:
-            if process_one(video, args.out, args) != 0:
+            if process_one(video, args.output_dir, args) != 0:
                 return 1
         return 0
+    if args.cmd == "calibrate":
+        return calibrate_cmd(args)
     if args.cmd == "label":
         from shuttlecut.labeling.gt import save_gt
         from shuttlecut.labeling.sheets import make_contact_sheets, make_dense_strip
@@ -240,7 +296,8 @@ def main(argv: list[str] | None = None) -> int:
                              f"temp/label/{Path(args.video).stem}/strip_{t0:.0f}_{t1:.0f}.jpg")
             print(f"生成密集帧条 [{t0},{t1}]s")
         if args.out:
-            rallies = json.loads(Path(f"temp/label/{Path(args.video).stem}/draft.json").read_text(encoding="utf-8"))
+            rallies = json.loads(
+                Path(f"temp/label/{Path(args.video).stem}/draft.json").read_text(encoding="utf-8"))
             save_gt(args.out, Path(args.video).stem, rallies)
             print(f"真值已保存 → {args.out}")
         return 0
@@ -261,9 +318,7 @@ def main(argv: list[str] | None = None) -> int:
                 f.write(f"| {datetime.now().isoformat(timespec='seconds')} | {args.rallies_json} | "
                         f"{rep.recall:.3f} | {rep.precision:.3f} | {rep.mae_s:.2f}s | {verdict} |\n")
         return 0 if verdict == "PASS" else 2
-    if args.cmd == "calibrate":
-        return calibrate_cmd(args)
-    print("该子命令在后续任务实现")
     return 0
-    print("该子命令在后续任务实现")
-    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -51,8 +51,10 @@ def _concat_line(path: str) -> str:
     return f"file '{escaped}'"
 
 
-def export_reel(clips: list[str], out_path: str) -> str:
-    lst = Path(out_path).with_suffix(".txt")
+def export_reel(clips: list[str], out_path: str, list_dir: str | None = None) -> str:
+    """拼接集锦;list_dir 指定时 concat 列表写入该目录(避免污染输出目录)。"""
+    lst = (Path(list_dir) if list_dir else Path(out_path).parent) / (Path(out_path).stem + ".txt")
+    lst.parent.mkdir(parents=True, exist_ok=True)
     # concat 条目用绝对路径:ffmpeg 相对*列表文件目录*解析相对路径,会加倍
     lst.write_text("\n".join(_concat_line(str(Path(c).resolve())) for c in clips), encoding="utf-8")
     subprocess.run(

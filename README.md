@@ -52,24 +52,23 @@ winget install Gyan.FFmpeg     # 新开终端后 ffmpeg -version 验证
 ## 使用
 
 ```powershell
-# 零训练出片(单模型)
-shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\<ckpt>.pt
+# 核心用法:一条命令 → 恰好 2 个视频(回合合集 + 精彩选集)
+shuttlecut process temp\<视频>.MP4
+# 输出: shuttlecut-output/<stem>-all-rallies.mp4 + <stem>-highlights.mp4
 
-# 推荐生产配方:3 种子边界投票(实测最佳跨视频配置)
-shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\r3d_e12_s13.pt,models\r3d_e12_s42.pt,models\r3d_e12_s7.pt
-shuttlecut process temp\<视频>.MP4 --temporal-ckpt models\<ckpt>.pt
+# 常用选项
+shuttlecut process a.MP4 b.MP4 -o exports --overwrite   # 多视频/指定目录/覆盖
+shuttlecut process a.MP4 --model m1.pt,m2.pt,m3.pt      # 多模型边界投票(最佳跨视频配置)
+shuttlecut process a.MP4 --write-metadata               # 额外出 <stem>-rallies.json(可选)
 
-# 评测(官方口径)
-shuttlecut eval outputs\<视频>\rallies.json --gt data\ground_truth\<视频>.json
-
-# 真值标注辅助(接触表/密集帧条)
-shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>
-
-# 自主标注(模型预标 + 视觉分诊 + 音频票)
-python tools\autolabel\label.py --video temp\<视频>.MP4 --ckpt models\<ckpt>.pt
+# 完整帮助(含示例)
+shuttlecut --help / shuttlecut process --help
 ```
 
-训练与曲线工具见 `tools/cuda/README.md`(Windows RTX 2070 手册:抽帧 → train_heavy.py → curves.py → segment_eval.py)。
+退出码:`0` 成功 / `1` 处理失败(模型缺失、输出已存在等) / `2` 用法错误。
+进度走 stderr,摘要与输出路径走 stdout(便于管道)。
+
+训练与曲线工具见 `tools/cuda/README.md`(Windows RTX 2070 手册)。
 
 ## 目录约定
 
@@ -94,9 +93,12 @@ MIT
 
 ```powershell
 shuttlecut calibrate temp\<新视频>.MP4                                  # 1. 渲染 40 张条带+模板
-# 2. 逐张查看 outputs\<视频>\calib\strip_XX.jpg,把 calib_template.json 中每条 verdict 改为 6 值 Y/N 序列,存为 calib.json
-shuttlecut calibrate temp\<新视频>.MP4 --phase run --calib outputs\<视频>\calib\calib.json   # 3. TTA 适配(约 10 分钟 GPU)
-shuttlecut process temp\<新视频>.MP4 --temporal-ckpt models\r3d_<视频>_calib.pt              # 4. 出片(片段+集锦+排序)
-```
-
+# 2. 逐张查看 shuttlecut-output\<视频>\calib\strip_XX.jpg,把 calib_template.json 中每条 verdict 改为 6 值 Y/N 序列,存为 calib.json
+shuttlecut calibrate temp\<新视频>.MP4 --phase run --calib shuttlecut-output\<视频>\calib\calib.json   # 3. TTA 适配(约 10 分钟 GPU)
+shuttlecut process temp\<新视频>.MP4                                    # 4. 出片(自动优先使用校准模型)
 实测(u0010/u0014 held-out):条带标注+TTA 后 **P/R = 1.000/1.000 与 0.898/0.800**;零训练跨场馆则 0.1-0.5 抽签(19 路线实验档案见 docs/eval-history.md)。
+# 附录:开发/评测子命令
+```powershell
+shuttlecut eval shuttlecut-output\<视频>-rallies.json --gt data\ground_truth\<视频>.json   # 官方口径评测(需 --write-metadata)
+shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>                              # 真值标注辅助
+```
