@@ -1,0 +1,9 @@
+{
+  "name": "shuttlecut",
+  "version": "sc-model-2026.09.19",
+  "description": "官方生产模型(R3D-18 W64,13 视频训练,同场馆 0.83-1.00)",
+  "url": "https://github.com/MagnyCopper/shuttlecut/releases/download/sc-model-2026.09.19/shuttlecut.pt",
+  "sha256": "ad2457b0f9e729dcd8ef080d5ffef050f18fb6934a3744136cd67ce46c678641",
+  "bytes": 132748363,
+  "model_card": "docs/model-cards/sc-model-2026.09.19.md"
+}

@@ -16,31 +16,49 @@ from pathlib import Path
 from shuttlecut import __version__
 from shuttlecut.ffmpeg import probe
 
-EXAMPLES = """\面向 LLM/Agent 的操作要点(完整手册 docs/llm-guide.md):
-  1. 常规出片 → process;新场馆/质量敏感 → 先 calibrate 再 process
-  2. process 输出恰好 2 个视频;进度在 stderr,摘要在 stdout;长时间无 stdout 属正常
-  3. 模型自动查找,无需指定;退出码 0/1/2 = 成功/失败/用法错
+EXAMPLES = """操作总纲(本 CLI 完全自说明,每个子命令 --help 含全部协议):
+  场景决策:常规出片→process;新场馆/质量敏感→先 calibrate 再 process;
+           质量验证→process --write-metadata + eval;训练新模型→tools/cuda/train_heavy.py
+  模型三层:models/shuttlecut-<stem>.pt(校准,优先) → models/shuttlecut.pt(官方,
+  缺失时自动下载) → models/exp/(实验,需 --model 显式指定)
+  通用契约:进度→stderr;摘要→stdout;退出码 0 成功/1 失败/2 用法错
 
 示例:
   shuttlecut process match.mp4                        # 输出 2 个视频到 ./shuttlecut-output/
   shuttlecut process match.mp4 -o exports --overwrite
   shuttlecut process match.mp4 --write-metadata      # 额外输出 rallies.json(供 eval)
-  shuttlecut calibrate match.mp4                      # 新视频 5 分钟校准(见 calibrate --help)
+  shuttlecut calibrate match.mp4                      # 新视频 5 分钟校准(协议见 calibrate --help)
 """
 
-PROCESS_EPILOG = """\输出契约(恰好 2 个文件):
+PROCESS_EPILOG = """输出契约(恰好 2 个文件):
   <out-dir>/<stem>-all-rallies.mp4    全部回合(时间顺序)
   <out-dir>/<stem>-highlights.mp4     精选回合(精彩度降序)
-流契约:进度/警告→stderr(阶段 [1/5]..[5/5]);摘要+输出路径→stdout。
-模型:默认自动查找 models/shuttlecut-<stem>.pt(校准优先) → models/shuttlecut.pt。
-退出码:0 成功 / 1 失败(输出已存在、模型缺失、未检出回合) / 2 用法错。
-"""
+流契约:进度/警告→stderr(阶段 [1/5]..[5/5]+百分比);摘要+输出路径→stdout;
+  长时间无 stdout 属正常,勿判卡死。首次处理某视频较慢(建帧/差分缓存),重复处理显著加快。
+模型解析(默认无需指定):models/shuttlecut-<stem>.pt(校准优先) →
+  models/shuttlecut.pt(官方;缺失时按内置 manifest 自动下载+SHA-256 校验)。
+退出码:0 成功 / 1 失败 / 2 用法错。
+Agent 处置规则:
+  - exit 1 "输出已存在" → 征得同意后加 --overwrite 重跑
+  - exit 1 "未找到时序模型"且下载失败 → 手动放置 models/shuttlecut.pt 或先 calibrate
+  - exit 1 "未检出任何回合" → 视频可能无对打/场馆差异大;跑 calibrate 重适配,仍无则报告
+  - stderr 出现 "[warn] 音频特征不可用"(audio 缺失) → 仅降级评分排序,非失败,忽略
+  - 多模型投票(高级):--model a.pt,b.pt,c.pt(实测优于单模型)"""
 
-CALIB_EPILOG = """\标注协议(LLM 必读,详见 docs/llm-guide.md §2):
-  每张 strip_XX.jpg 含 6 帧(左上→右下时间递增);逐帧判近场:
-  Y=回合中(对打/发球/击球后取位) N=停顿(捡球/休息/换场/仅远场打)
-  把模板每条 verdict 改为 6 值 Y/N 序列(如 YYNNYY),存为 calib.json 后 run。
-  产物 models/shuttlecut-<stem>.pt,此后 process 自动优先使用。
+CALIB_EPILOG = """两步协议(新视频实测 P/R 0.9-1.0;零训练则 0.1-0.5 逐视频抽签):
+  phase 1(默认):渲染 N 张条带到 shuttlecut-output/<stem>/calib/strip_XX.jpg,
+    每张含 6 帧(左上→右下时间递增,约 3s 间隔)+ calib_template.json 模板。
+  人工/LLM 标注:逐帧判【近场】(画面主体球场):
+    Y = 回合中(对打/发球瞬间/击球后移动取位)
+    N = 停顿(走动捡球/站立休息/换场/仅远场有人打/空场)
+    多球场只判近场;不确定帧取回合倾向;6 帧全 N 合法(纯休息段)。
+  提交:模板每条 verdict 改为 6 值 Y/N(如 YYNNYY),不增删字段,存为
+    shuttlecut-output/<stem>/calib/calib.json
+  phase 2:--phase run --calib <该文件> → TTA 适配(需 GPU,5-15 分钟)
+    产物 models/shuttlecut-<stem>.pt,此后 process 自动优先使用,无需 --model。
+  质量守则(quality):标注一致性 > 覆盖率;<5 分钟视频 --strips 24,>25 分钟 --strips 60。
+  验证回路:calibrate → process --write-metadata → eval --gt <真值>;
+    未达 0.9 → 检查边界帧标注质量重标 → 重跑。
 
 示例:
   shuttlecut calibrate match.mp4                                    # phase 1: 出 40 张条带
@@ -48,6 +66,12 @@ CALIB_EPILOG = """\标注协议(LLM 必读,详见 docs/llm-guide.md §2):
       shuttlecut-output/<stem>/calib/calib.json                     # phase 2: TTA 适配
   shuttlecut process match.mp4                                      # 出片(自动用校准模型)
 """
+
+EVAL_EPILOG = """用于质量验证回路:
+  shuttlecut process X.MP4 --write-metadata
+  shuttlecut eval shuttlecut-output/<stem>-rallies.json --gt data/ground_truth/<stem>.json
+  输出 PASS/FAIL(P/R ≥0.90)与 missed/extra/fragment/boundary 分解;--record 追加台账。
+  真值格式同 data/ground_truth/*.json;构建训练真值用 tools/autolabel/auto.py + 条带法。"""
 
 
 def _err(msg: str) -> None:
@@ -92,7 +116,8 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("--epochs", type=int, default=3, metavar="N", help="TTA 轮数(默认: 3)")
     cb.add_argument("--lr", type=float, default=5e-5, metavar="LR", help="TTA 学习率(默认: 5e-5)")
 
-    ev = sub.add_parser("eval", help="对比检测结果与真值(开发用)")
+    ev = sub.add_parser("eval", help="对比检测结果与真值(开发用)", epilog=EVAL_EPILOG,
+                         formatter_class=argparse.RawDescriptionHelpFormatter)
     ev.add_argument("rallies_json", metavar="JSON", help="process --write-metadata 生成的 rallies.json")
     ev.add_argument("--gt", required=True, metavar="GT_JSON", help="真值 JSON(data/ground_truth/ 下)")
     ev.add_argument("--record", metavar="FILE", help="把本次结果追加为 Markdown 表格行")
@@ -128,6 +153,29 @@ def _check_input(video: str) -> bool:
     return True
 
 
+def _ensure_default_model(progress=None) -> str | None:
+    """models/shuttlecut.pt 缺失时按 manifest 自动下载(whisper 模式)。"""
+    target = "models/shuttlecut.pt"
+    if Path(target).exists():
+        return target
+    try:
+        from shuttlecut.modelhub import download_model, load_manifest
+        m = load_manifest()
+        if not m.get("url"):
+            return None
+        if progress:
+            progress(f"[model] 首次使用:下载 {m['version']}({m['bytes'] >> 20} MB)…")
+        download_model(target, m, progress=progress)
+        if progress:
+            progress(f"[model] 就绪 → {target}")
+        return target
+    except Exception as e:
+        Path(target + ".part").unlink(missing_ok=True)
+        if progress:
+            progress(f"[warn] 模型自动下载失败({e});请手动放置 {target}")
+        return None
+
+
 def process_one(video: str, out_root: str, args) -> int:
     import subprocess
 
@@ -148,18 +196,23 @@ def process_one(video: str, out_root: str, args) -> int:
             _err(f"输出已存在: {target}(用 --overwrite 覆盖)")
             return 1
 
+    def progress(msg: str) -> None:
+        if not args.quiet:
+            print(msg, file=sys.stderr)
+
     ckpts = _resolve_models(stem, args.model)
     if not ckpts:
-        _err("未找到时序模型。放置 models/shuttlecut.pt,或先 calibrate,详见 docs/llm-guide.md §1")
-        return 1
+        got = _ensure_default_model(progress)
+        if got:
+            ckpts = [got]
+        else:
+            _err("未找到时序模型且自动下载失败。恢复:①检查网络后重试 ②手动放置 models/shuttlecut.pt ③先运行 calibrate(标注协议见 calibrate --help)")
+            return 1
     missing = [c for c in ckpts if not Path(c).exists()]
     if missing:
         _err(f"模型不存在: {', '.join(missing)}")
         return 1
 
-    def progress(msg: str) -> None:
-        if not args.quiet:
-            print(msg, file=sys.stderr)
 
     from shuttlecut.temporal import (TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15,
                                     infer_curve, load_diffs, two_scale_segments)
@@ -184,7 +237,7 @@ def process_one(video: str, out_root: str, args) -> int:
     else:
         segs = two_scale_segments(centers, probs, None, None, **tune)
     if not segs:
-        _err("未检出任何回合")
+        _err("未检出任何回合。视频可能无对打内容或场馆差异过大;可跑 calibrate 重适配(见 calibrate --help),仍无则检查视频内容")
         return 1
     progress(f"[3/5] 切分完成: {len(segs)} 个回合")
 
@@ -283,7 +336,7 @@ def calibrate_cmd(args) -> int:
         (outdir / "calib_template.json").write_text(
             json.dumps({"video": stem, "strips": tmpl}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"条带已生成 → {outdir}\\strip_XX.jpg")
-        print("标注规范见 docs/llm-guide.md §2(6 帧逐帧 Y/N,只判近场)")
+        print("标注协议:6 帧逐帧判近场,Y=回合中(对打/发球/取位) N=停顿(捡球/休息/远场);完整标准见 calibrate --help")
         print(f"逐张查看,把模板中 verdict 改为 6 值 Y/N(是/停顿),保存为 calib.json,然后运行:")
         print(f"  shuttlecut calibrate {args.video} --phase run --calib {outdir / 'calib.json'}")
         return 0

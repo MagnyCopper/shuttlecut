@@ -75,7 +75,7 @@ data/ground_truth/      段级真值(16 份:DJI 同域 14 + B站 4 场馆)
 models/                 shuttlecut.pt(官方)/ shuttlecut-<stem>.pt(校准)/ exp/(实验,git 忽略)
 shuttlecut-output/      process 默认输出目录(git 忽略)
 artifacts/curves/       实验概率曲线输出区(git 忽略)
-docs/                   llm-guide(Agent 手册)/ specs(设计)/ history(归档)/ eval-history.md(实测台账)
+docs/                   specs(设计)/ history(归档)/ eval-history.md(实测台账);操作知识全在 CLI --help
 tests/                  pytest(56 项)
 temp/                   工作区与素材(git 忽略)
 ```
@@ -120,15 +120,9 @@ models/
 3. **晋升**:`Copy-Item models/exp/<胜出者>.pt models/shuttlecut.pt`
 4. **使用**:`shuttlecut process 视频.MP4` 零参数(校准模型 → 官方模型依次自动查找);多模型投票属高级用法 `--model models/exp/a.pt,models/exp/b.pt`
 5. **校准**:`shuttlecut calibrate 视频.MP4` 产出 `models/shuttlecut-<stem>.pt`,该视频后续 process 自动使用
-完整文档索引:
-- `README.md` —— 人类用户快速上手
-- `docs/llm-guide.md` —— **Agent/LLM 操作手册**(流程决策/标注协议/流契约/异常处置)
-- `docs/eval-history.md` —— 实验台账(19 路线档案)
-- `tools/cuda/README.md` —— 训练工具手册
+## 完整参考(操作知识全部内置于 CLI,无独立手册)
 
-## 完整文档索引
-- `README.md` —— 人类用户快速上手
-- `docs/llm-guide.md` —— **Agent/LLM 操作手册**(流程决策/标注协议/流契约/异常处置,自动化操作前必读)
+- `shuttlecut --help` / `<命令> --help` —— **唯一权威操作文档**(决策总纲/标注协议/流契约/异常处置)
 - `docs/eval-history.md` —— 实验台账(19 路线完整档案)
 - `tools/cuda/README.md` —— 训练工具手册
 - `AGENTS.md` —— 工程规约(模型命名/CLI 契约/质量基线)

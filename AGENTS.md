@@ -27,12 +27,12 @@ models/exp/<tag>.pt           # 实验沙盒(train_heavy 产物,永不参与自�
 - `shuttlecut process INPUT` 输出**恰好 2 个视频**(`<stem>-all-rallies.mp4` + `<stem>-highlights.mp4`);副产物仅显式 `--write-metadata`
 - 进度走 stderr(阶段 [1/5]…[5/5]+百分比);stdout 只留最终摘要
 - 退出码:0 成功 / 1 处理失败 / 2 用法错误
-- 完整 Agent 操作手册:**`docs/llm-guide.md`**(流程决策/标注协议/异常处置,操作本工具前必读)
+- 操作知识全部内置于 CLI help(`shuttlecut --help`/`calibrate --help`),无独立手册;错误消息自带恢复路径
 
 ### 质量基线(勿重复已判负路线)
 - 同场馆/训练集内:P/R 0.83-1.00;校准协议:0.9-1.0(u0010=1.000/1.000)
 - 零训练跨场馆:0.1-0.5 抽签(**19 路线实验档案已证明为配置不变式**,见 `docs/eval-history.md`)
-- 一切对照实验必须 ≥3 种子(训练方差 ±0.15);GT 一律 look_at 视觉构建(协议见 llm-guide §2)
+- 一切对照实验必须 ≥3 种子(训练方差 ±0.15);GT 一律 look_at 视觉构建(协议=calibrate --help 内标注标准)
 
 ### 测试与验证
 - `pytest -q` 全绿是提交前提(当前 54 项)
