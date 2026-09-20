@@ -10,22 +10,6 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install opencv-python numpy scipy
 ```
 
-## 数据
-
-本目录随包附 `data/ground_truth/`(B1/B2 段级真值)。把两段原始视频放进 `temp/`:
-
-```
-videos/DJI_20260830153830_0015_D.MP4   # B1
-videos/DJI_20260830173600_0025_D.MP4   # B2
-```
-
-抽帧(每段约 2-3 分钟):
-
-```bash
-python prep_data.py --video videos/DJI_20260830153830_0015_D.MP4 --gt data/ground_truth/DJI_20260830153830_0015_D.json
-python prep_data.py --video videos/DJI_20260830173600_0025_D.MP4 --gt data/ground_truth/DJI_20260830173600_0025_D.json
-```
-
 ## 训练(每视频 × 每窗长,各约 15-40 分钟)
 
 ```bash
@@ -95,7 +79,7 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 # 应输出: True NVIDIA GeForce RTX 2070 ...
 
 # 4. 之后流程与本 README 主体一致(python 命令逐条执行)
-python tools\cuda\prep_data.py --video temp\DJI_20260830153830_0015_D.MP4 --gt data\ground_truth\DJI_20260830153830_0015_D.json
+# (帧抽取由 src/shuttlecut/temporal.extract_frames15 自动完成,无需单独预处理)
 # 实验模型一律输出到 models/exp/(命名规范见主 README);官方模型=models/shuttlecut.pt`nmkdir -p ..\..\models\exp
 python tools\cuda\train_heavy.py --frames temp\work\DJI_20260830153830_0015_D\frames15 --gt data\ground_truth\DJI_20260830153830_0015_D.json --out ckpt\r3d_b1_w64.pt --win 64
 # ...(B1/B2 × W64/W24 共 4 次)

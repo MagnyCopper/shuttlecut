@@ -19,14 +19,9 @@ MP4 → 15fps 抽帧(缓存) → LK-RANSAC 全局运动补偿差分
 | 新视频跨场馆 tol 5s | 0.49 / 0.61 |
 | 新视频 + 测试时自适配(TTA) | 最高 0.39/0.46(单视频有效不稳定) |
 
-> 诚实结论(14 路线实验档案):R3D-18 W64 范式下跨视频边界方差 ±4-5s 不可后处理修复;
-> 0.90 跨场馆目标需新范式(时序 Transformer/光流,见 docs/eval-history.md 尾部)。
-同场馆新视频可用 `--tune` 自微调补强。
+> 诚实结论(19 路线实验档案):R3D-18 W64 范式下跨视频边界方差 ±4-5s 不可后处理修复,
+> 逐视频 0.1-0.5 为配置不变式;新视频提质请走下方「5 分钟校准协议」(实测 0.9-1.0)。
 
-| 场景 | P / R |
-|---|---|
-| 同域(joint2 训练视频内) | 0.957/0.918 ~ 0.984/0.968 |
-| **零训练跨场馆(0037)** | **0.818 / 0.964**(目标双 ≥0.90,攻坚中) |
 
 完整实测史(全部实验含失败)见 `docs/eval-history.md`;当前方案设计见 `docs/specs/`。
 
@@ -73,13 +68,16 @@ shuttlecut --help / shuttlecut process --help
 ## 目录约定
 
 ```
-src/shuttlecut/     管线代码(cli/temporal/exporter/ffmpeg/audio/labeling/eval)
-tools/              cuda 训练套件 + autolabel 自主标注
-data/ground_truth/  段级真值(B1: 49 回合;B2: 62 回合;0037: 28 回合)
-artifacts/curves/   实验概率曲线输出区(curves.py 默认落盘,git 忽略)
-docs/               specs(现行设计)/ history(归档)/ eval-history.md(实测台账)
-tests/              pytest
-temp/ outputs/ models/   工作区与产物(git 忽略)
+src/shuttlecut/          管线代码(cli/temporal/exporter/ffmpeg/audio/rank/labeling/eval)
+tools/cuda/             训练套件(train_heavy/curves/segment_eval,见其 README)
+tools/autolabel/        训练 GT 构建辅助(auto.py)
+data/ground_truth/      段级真值(16 份:DJI 同域 14 + B站 4 场馆)
+models/                 shuttlecut.pt(官方)/ shuttlecut-<stem>.pt(校准)/ exp/(实验,git 忽略)
+shuttlecut-output/      process 默认输出目录(git 忽略)
+artifacts/curves/       实验概率曲线输出区(git 忽略)
+docs/                   llm-guide(Agent 手册)/ specs(设计)/ history(归档)/ eval-history.md(实测台账)
+tests/                  pytest(56 项)
+temp/                   工作区与素材(git 忽略)
 ```
 
 ## 规约
@@ -99,7 +97,7 @@ shuttlecut process temp\<新视频>.MP4                                    # 4. 
 实测(u0010/u0014 held-out):条带标注+TTA 后 **P/R = 1.000/1.000 与 0.898/0.800**;零训练跨场馆则 0.1-0.5 抽签(19 路线实验档案见 docs/eval-history.md)。
 # 附录:开发/评测子命令
 ```powershell
-shuttlecut eval shuttlecut-output\<视频>-rallies.json --gt data\ground_truth\<视频>.json   # 官方口径评测(需 --write-metadata)
+shuttlecut eval shuttlecut-output\<stem>-rallies.json --gt data\ground_truth\<stem>.json   # 官方口径评测(--write-metadata 先产出)
 shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>                              # 真值标注辅助
 ```
 # 模型获取(二选一)
