@@ -127,6 +127,14 @@ def build_parser() -> argparse.ArgumentParser:
     lb.add_argument("--sheets", metavar="OUTDIR", help="生成接触表到该目录")
     lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"), help="生成 [T0,T1] 秒密集帧条")
     lb.add_argument("--out", metavar="FILE", help="把 temp/label/<stem>/draft.json 存为真值")
+
+    cc = sub.add_parser("cache", help="查看/清理可重建缓存(帧库/差分/切片)",
+                        description="列出或删除 temp/work 下的可再生缓存(帧库 frames15、差分 diffs_cache、"
+                        "切片 cut、音频 audio.wav)。默认 dry-run 只列出;--yes 才执行删除。"
+                        "源视频(temp/*.MP4, temp/bili/)与模型不属缓存,永不触碰。")
+    cc.add_argument("--yes", action="store_true", help="实际执行删除(默认 dry-run)")
+    cc.add_argument("--older-than", type=float, default=0, metavar="DAYS",
+                    help="仅清理 DAYS 天未访问的缓存(默认: 全部)")
     return p
 
 
@@ -383,6 +391,52 @@ def calibrate_cmd(args) -> int:
     return 0
 
 
+def cache_cmd(args) -> int:
+    """temp/work 可再生缓存的列出/清理(默认 dry-run)。"""
+    import time
+
+    work = Path("temp/work")
+    if not work.exists():
+        print("无缓存目录(temp/work 不存在)")
+        return 0
+    cache_names = {"frames15", "cut"}
+    cache_files = {"diffs_cache.npy", "flow_cache.npy", "r3d_feat.npy", "audio.wav"}
+    cutoff = time.time() - args.older_than * 86400 if args.older_than > 0 else None
+    rows: list[tuple[str, int]] = []
+    for d in sorted(work.iterdir()):
+        if not d.is_dir():
+            continue
+        for name in cache_names:
+            sub = d / name
+            if sub.is_dir():
+                ok = cutoff is None or sub.stat().st_atime < cutoff
+                if ok:
+                    rows.append((str(sub), sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())))
+        for fn in cache_files:
+            f = d / fn
+            if f.is_file():
+                ok = cutoff is None or f.stat().st_atime < cutoff
+                if ok:
+                    rows.append((str(f), f.stat().st_size))
+    if not rows:
+        print("无可清理缓存" + (f"(>{args.older_than} 天未访问)" if args.older_than else ""))
+        return 0
+    total = sum(s for _, s in rows)
+    verb = "已清理" if args.yes else "[dry-run] 将清理(--yes 执行)"
+    for p, s in rows:
+        print(f"  {s / 1e9:7.2f} GB  {p}")
+    print(f"{verb}: {len(rows)} 项, 共 {total / 1e9:.1f} GB")
+    if args.yes:
+        for p, _ in rows:
+            t = Path(p)
+            if t.is_dir():
+                import shutil
+                shutil.rmtree(t, ignore_errors=True)
+            else:
+                t.unlink(missing_ok=True)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd is None:
@@ -412,6 +466,8 @@ def main(argv: list[str] | None = None) -> int:
             save_gt(args.out, Path(args.video).stem, rallies)
             print(f"真值已保存 → {args.out}")
         return 0
+    if args.cmd == "cache":
+        return cache_cmd(args)
     if args.cmd == "eval":
         from shuttlecut.eval.evaluate import evaluate
         from shuttlecut.labeling.gt import load_gt

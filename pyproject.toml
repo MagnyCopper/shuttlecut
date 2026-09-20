@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shuttlecut"
-version = "0.2.0"
+version = "1.0.0"
 description = "Badminton rally auto-clipping: motion-compensated temporal pipeline with zero-training inference"
 readme = "README.md"
 license = "MIT"
