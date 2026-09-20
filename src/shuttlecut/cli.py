@@ -42,22 +42,23 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser(
         "process", help="切分回合并输出 2 个视频(all-rallies + highlights)",
         epilog=EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
-    pr.add_argument("videos", nargs="+", metavar="INPUT")
+    pr.add_argument("videos", nargs="+", metavar="INPUT", help="源视频路径(可多个)")
     pr.add_argument("-o", "--output-dir", default="shuttlecut-output", metavar="DIR",
                     help="输出目录(默认: ./shuttlecut-output)")
     pr.add_argument("--model", default=None, metavar="CKPT[,CKPT...]",
-                    help="时序模型,逗号分隔多模型启用边界投票(默认: 自动查找)")
+                    help="时序模型 ckpt;逗号分隔多模型启用边界投票。"
+                            "默认自动查找: models/r3d_<stem>_calib.pt(校准模型优先) → models/r3d_e16_s13.pt")
     pr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     pr.add_argument("--overwrite", action="store_true", help="覆盖已存在的输出")
     pr.add_argument("--write-metadata", action="store_true",
                     help="额外输出 <stem>-rallies.json(时间戳/评分,机器可读)")
-    pr.add_argument("--quiet", action="store_true", help="抑制进度输出(stderr)")
+    pr.add_argument("--quiet", action="store_true", help="抑制进度日志(仅保留最终摘要)")
 
     cb = sub.add_parser(
         "calibrate", help="新视频 5 分钟人工校准:条带标注 → TTA 适配模型",
         description="两步协议:prepare 渲染条带与模板;人工标注后 run 训练专属模型。"
                     "校准后的视频实测 P/R 0.9-1.0(见 docs/eval-history.md)。")
-    cb.add_argument("video", metavar="INPUT")
+    cb.add_argument("video", metavar="INPUT", help="源视频路径")
     cb.add_argument("--phase", choices=["prepare", "run"], default="prepare",
                     help="prepare=渲染条带+模板(默认);run=读标注→TTA→适配模型")
     cb.add_argument("--strips", type=int, default=40, metavar="N",
@@ -68,15 +69,15 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("--lr", type=float, default=5e-5, metavar="LR", help="TTA 学习率(默认: 5e-5)")
 
     ev = sub.add_parser("eval", help="对比检测结果与真值(开发用)")
-    ev.add_argument("rallies_json", metavar="JSON")
-    ev.add_argument("--gt", required=True, metavar="GT_JSON")
-    ev.add_argument("--record", metavar="FILE", help="追加结果到 Markdown 表")
+    ev.add_argument("rallies_json", metavar="JSON", help="process --write-metadata 生成的 rallies.json")
+    ev.add_argument("--gt", required=True, metavar="GT_JSON", help="真值 JSON(data/ground_truth/ 下)")
+    ev.add_argument("--record", metavar="FILE", help="把本次结果追加为 Markdown 表格行")
 
     lb = sub.add_parser("label", help="真值标注辅助(开发用)")
-    lb.add_argument("video", metavar="INPUT")
-    lb.add_argument("--sheets", metavar="OUTDIR")
-    lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"))
-    lb.add_argument("--out", metavar="FILE")
+    lb.add_argument("video", metavar="INPUT", help="源视频路径")
+    lb.add_argument("--sheets", metavar="OUTDIR", help="生成接触表到该目录")
+    lb.add_argument("--strip", nargs=2, type=float, metavar=("T0", "T1"), help="生成 [T0,T1] 秒密集帧条")
+    lb.add_argument("--out", metavar="FILE", help="把 temp/label/<stem>/draft.json 存为真值")
     return p
 
 
