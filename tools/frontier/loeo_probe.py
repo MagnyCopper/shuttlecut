@@ -234,8 +234,8 @@ def main():
             print(f"[wait] fold={hold}: 缺 {missing} 条特征,跳过(提取未完)")
             continue
         fold = []
-        probs = ensemble_curves(tr + [load_stem(s) for s in te_stems if (load_stem(s))],
-                                  a.seeds, dev)
+        te = [v for v in (load_stem(s) for s in te_stems) if v]
+        probs = ensemble_curves(tr + te, a.seeds, dev)
         tr_items = [(v["cent"], probs[v["stem"]], v["segs"]) for v in tr]
         score, par = grid_on(tr_items)
         print(f"[loeo hold={hold}] 分割参数={par} 训练侧={score:.3f}")
