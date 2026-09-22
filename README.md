@@ -94,7 +94,7 @@ MIT
 shuttlecut calibrate temp\<新视频>.MP4                                  # 1. 渲染 40 张条带+模板
 # 2. 逐张查看 shuttlecut-output\<视频>\calib\strip_XX.jpg,把 calib_template.json 中每条 verdict 改为 6 值 Y/N 序列,存为 calib.json
 shuttlecut calibrate temp\<新视频>.MP4 --phase run --calib shuttlecut-output\<视频>\calib\calib.json   # 3. TTA 适配(约 10 分钟 GPU)
-shuttlecut process temp\<新视频>.MP4                                    # 4. 出片(自动优先使用校准模型)
+shuttlecut process temp\<新视频>.MP4                                    # 4. 出片(默认探针;或 --model 显式使用校准模型)
 实测(u0010/u0014 held-out):条带标注+TTA 后 **P/R = 1.000/1.000 与 0.898/0.800**;零训练跨场馆则 0.1-0.5 抽签(19 路线实验档案见 docs/eval-history.md)。
 # 附录:开发/评测子命令
 ```powershell
@@ -104,14 +104,14 @@ shuttlecut label temp\<视频>.MP4 --sheets temp\sheets_<视频>                
 # 模型获取(二选一)
 - 已有官方模型:放到 `models/shuttlecut.pt`(process 零参数自动使用)
 - 自行训练:`tools/cuda/train_heavy.py`(见 tools/cuda/README.md),产物重命名/软链为 `models/shuttlecut.pt`
-- 新视频效果提升:跑一次 `shuttlecut calibrate`(生成该视频专属模型,自动优先使用)
+- 新视频效果提升:跑一次 `shuttlecut calibrate`(产物经 `--model` 显式使用)
 
 ## 模型命名规范(训练 → 晋升 → 使用)
 
 ```
 models/
   shuttlecut.pt          # 官方生产模型:process 的唯一默认
-  shuttlecut-<stem>.pt   # 视频专属校准模型:calibrate 产物,存在则自动优先
+  shuttlecut-<stem>.pt   # 视频专属校准模型:calibrate 产物,--model 显式使用
   exp/                   # 实验沙盒:train_heavy 直接产物,不参与任何自动查找
 ```
 
@@ -119,8 +119,8 @@ models/
 1. **训练**:`python tools/cuda/train_heavy.py --frames ... --gt ... --out models/exp/<tag>.pt`(实验模型一律入 exp/)
 2. **评审**:`tools/cuda/curves.py + segment_eval.py` 对比基线(docs/eval-history.md 台账记录)
 3. **晋升**:`Copy-Item models/exp/<胜出者>.pt models/shuttlecut.pt`
-4. **使用**:`shuttlecut process 视频.MP4` 零参数(校准模型 → 官方模型依次自动查找);多模型投票属高级用法 `--model models/exp/a.pt,models/exp/b.pt`
-5. **校准**:`shuttlecut calibrate 视频.MP4` 产出 `models/shuttlecut-<stem>.pt`,该视频后续 process 自动使用
+4. **使用**:`shuttlecut process 视频.MP4` 零参数(V-JEPA 探针 → 官方 R3D 两层自动,任何视频行为一致);校准/投票等高级用法 `--model models/exp/a.pt,models/exp/b.pt`
+5. **校准**(可选):`shuttlecut calibrate 视频.MP4` 产出 `models/shuttlecut-<stem>.pt`,经 `--model` 显式使用
 ## 完整参考(操作知识全部内置于 CLI,无独立手册)
 
 - `shuttlecut --help` / `<命令> --help` —— **唯一权威操作文档**(决策总纲/标注协议/流契约/异常处置)

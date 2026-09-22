@@ -17,10 +17,10 @@ from shuttlecut import __version__
 from shuttlecut.ffmpeg import probe
 
 EXAMPLES = """操作总纲(本 CLI 完全自说明,每个子命令 --help 含全部协议):
-  场景决策:常规出片→process;新场馆/质量敏感→先 calibrate 再 process;
+  场景决策:常规出片→process(任何视频行为一致);质量敏感→calibrate 后 --model 显式使用;
            质量验证→process --write-metadata + eval;训练新模型→tools/cuda/train_heavy.py
-  模型三层:models/shuttlecut-<stem>.pt(校准,优先) → models/shuttlecut.pt(官方,
-  缺失时自动下载) → models/exp/(实验,需 --model 显式指定)
+  模型两层(均匀,无按视频特例):shuttlecut-probe.pt(V-JEPA 探针,跨场馆零校准,
+  缺失自动下载) → shuttlecut.pt(官方 R3D 兜底);校准/实验模型经 --model 显式指定
   通用契约:进度→stderr;摘要→stdout;退出码 0 成功/1 失败/2 用法错
 
 示例:
@@ -35,12 +35,11 @@ PROCESS_EPILOG = """输出契约(恰好 2 个文件):
   <out-dir>/<stem>-highlights.mp4     精选回合(精彩度降序)
 流契约:进度/警告→stderr(阶段 [1/5]..[5/5]+百分比);摘要+输出路径→stdout;
   长时间无 stdout 属正常,勿判卡死。首次处理某视频较慢(建帧/差分缓存),重复处理显著加快。
-模型解析(默认无需指定,三层优先):
-  1) models/shuttlecut-<stem>.pt —— 本视频校准模型(calibrate 产物,最优)
-  2) models/shuttlecut-probe.pt —— V-JEPA 探针(跨场馆零校准,LOEO 0.83/0.80;
+模型解析(默认无需指定,两层;任何视频行为一致):
+  1) models/shuttlecut-probe.pt —— V-JEPA 探针(跨场馆零校准,LOEO 0.83/0.80;
      缺失时自动下载;首次用需 HF 编码器 1.2GB 落 models/hf,一次性)
-  3) models/shuttlecut.pt —— 官方 R3D(缺失时自动下载+SHA-256 校验)
-  显式 --model 指定时绕过探针,仅用 R3D 权重。
+  2) models/shuttlecut.pt —— 官方 R3D(缺失时自动下载+SHA-256 校验)
+  --model 显式指定 R3D 权重(校准产物/实验/投票),完全绕过探针。
 退出码:0 成功 / 1 失败 / 2 用法错。
 Agent 处置规则:
   - exit 1 "输出已存在" → 征得同意后加 --overwrite 重跑
@@ -59,7 +58,7 @@ CALIB_EPILOG = """两步协议(新视频实测 P/R 0.9-1.0;零训练则 0.1-0.5 
   提交:模板每条 verdict 改为 6 值 Y/N(如 YYNNYY),不增删字段,存为
     shuttlecut-output/<stem>/calib/calib.json
   phase 2:--phase run --calib <该文件> → TTA 适配(需 GPU,5-15 分钟)
-    产物 models/shuttlecut-<stem>.pt,此后 process 自动优先使用,无需 --model。
+    产物 models/shuttlecut-<stem>.pt;此后经 process --model 显式使用(默认路径对任何视频均匀:探针→官方 R3D)。
   质量守则(quality):标注一致性 > 覆盖率;<5 分钟视频 --strips 24,>25 分钟 --strips 60。
   验证回路:calibrate → process --write-metadata → eval --gt <真值>;
     未达 0.9 → 检查边界帧标注质量重标 → 重跑。
@@ -144,15 +143,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 # 模型命名规范(全链路):
 #   models/shuttlecut.pt          —— 官方生产模型(唯一默认;由 models/exp/ 评审后晋升)
-#   models/shuttlecut-<stem>.pt   —— 视频专属校准模型(calibrate 产物,存在则优先)
+#   models/shuttlecut-<stem>.pt   —— 视频专属校准模型(calibrate 产物,经 --model 显式使用)
 #   models/exp/<tag>.pt           —— 实验沙盒(train_heavy 直接产物,不对外)
 DEFAULT_MODELS = ("models/shuttlecut.pt",)
 
 
-def _resolve_models(stem: str, model_arg: str | None) -> list[str]:
+def _resolve_models(model_arg: str | None) -> list[str]:
     if model_arg:
         return [m.strip() for m in model_arg.split(",") if m.strip()]
-    for cand in (f"models/shuttlecut-{stem}.pt", *DEFAULT_MODELS):
+    for cand in DEFAULT_MODELS:  # 产品原则:自动解析对任何视频均匀,无按 stem 特例
         if Path(cand).exists():
             return [cand]
     return []
@@ -213,7 +212,7 @@ def process_one(video: str, out_root: str, args) -> int:
             print(msg, file=sys.stderr)
 
     probe_seg = None
-    if not args.model and not Path(f"models/shuttlecut-{stem}.pt").exists():
+    if not args.model:
         from shuttlecut import vjepa
         try:
             if vjepa.ensure_probe(progress):
@@ -231,7 +230,7 @@ def process_one(video: str, out_root: str, args) -> int:
     if probe_seg is not None:
         centers, probs, segs = pcent, pprobs, probe_seg
     else:
-        ckpts = _resolve_models(stem, args.model)
+        ckpts = _resolve_models(args.model)
         if not ckpts:
             got = _ensure_default_model(progress)
             if got:

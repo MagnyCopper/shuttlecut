@@ -19,13 +19,13 @@
 ```
 models/shuttlecut.pt          # 官方 R3D 生产模型(第三优先)
 models/shuttlecut-probe.pt    # V-JEPA 探针(跨场馆零校准,第二优先;3 种子集成)
-models/shuttlecut-<stem>.pt   # 视频专属校准模型(calibrate 产物,自动优先)
+models/shuttlecut-<stem>.pt   # 视频专属校准模型(calibrate 产物,--model 显式使用)
 models/exp/<tag>.pt           # 实验沙盒(train_heavy 产物,永不参与自动查找)
 ```
 新训练一律 `--out models/exp/…`;晋升 = 评审后复制为 `models/shuttlecut.pt`。
 
 ### CLI 契约(v1 版)
-- `shuttlecut process INPUT` 输出**恰好 2 个视频**(`<stem>-all-rallies.mp4` + `<stem>-highlights.mp4`);副产物仅显式 `--write-metadata`
+- `shuttlecut process INPUT` 输出**恰好 2 个视频**;模型解析均匀两层(探针→官方 R3D),**无按视频特例**(校准产物经 --model 显式使用)(`<stem>-all-rallies.mp4` + `<stem>-highlights.mp4`);副产物仅显式 `--write-metadata`
 - 进度走 stderr(阶段 [1/5]…[5/5]+百分比);stdout 只留最终摘要
 - 退出码:0 成功 / 1 处理失败 / 2 用法错误
 - 操作知识全部内置于 CLI help(`shuttlecut --help`/`calibrate --help`),无独立手册;错误消息自带恢复路径
