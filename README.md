@@ -43,7 +43,7 @@ winget install Gyan.FFmpeg     # 新开终端后 ffmpeg -version 验证
 素材与权重(不入库,放本地):
 
 - 视频:`temp/*.MP4`(命名与 `data/ground_truth/*.json` 的 video 字段一致)
-- 权重:`models/<ckpt>.pt`(训练产物,不随仓库分发;用 tools/cuda/train_heavy.py 训练)
+- 权重:`models/<ckpt>.pt`(训练产物,不随仓库分发);V-JEPA 探针与官方模型首用时自动下载
 
 ## 使用
 
@@ -73,7 +73,7 @@ src/shuttlecut/          管线代码(cli/temporal/exporter/ffmpeg/audio/rank/la
 tools/cuda/             训练套件(train_heavy/curves/segment_eval,见其 README)
 tools/autolabel/        训练 GT 构建辅助(auto.py)
 data/ground_truth/      段级真值(16 份:DJI 同域 14 + B站 4 场馆)
-models/                 shuttlecut.pt(官方)/ shuttlecut-<stem>.pt(校准)/ exp/(实验,git 忽略)
+models/                 shuttlecut.pt(官方)/ shuttlecut-probe.pt(V-JEPA 探针)/ shuttlecut-<stem>.pt(校准)/ exp/(实验,git 忽略)
 shuttlecut-output/      process 默认输出目录(git 忽略)
 artifacts/curves/       实验概率曲线输出区(git 忽略)
 docs/                   specs(设计)/ history(归档)/ eval-history.md(实测台账);操作知识全在 CLI --help

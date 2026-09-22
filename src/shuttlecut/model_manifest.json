@@ -5,5 +5,11 @@
   "url": "https://github.com/MagnyCopper/shuttlecut/releases/download/sc-model-2026.09.19/shuttlecut.pt",
   "sha256": "ad2457b0f9e729dcd8ef080d5ffef050f18fb6934a3744136cd67ce46c678641",
   "bytes": 132748363,
-  "model_card": "docs/model-cards/sc-model-2026.09.19.md"
+  "model_card": "docs/model-cards/sc-model-2026.09.19.md",
+  "probe": {
+    "version": "sc-probe-2026.09.22",
+    "url": "https://github.com/MagnyCopper/shuttlecut/releases/download/sc-model-2026.09.22/shuttlecut-probe.pt",
+    "sha256": "dcff114940726e060237361306ed46be8bbcefde7ec4748b0851c1d2d84fb53e",
+    "bytes": 22166333
+  }
 }

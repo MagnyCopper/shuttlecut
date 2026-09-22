@@ -17,7 +17,8 @@
 
 ### 模型命名(严格执行)
 ```
-models/shuttlecut.pt          # 官方生产模型(process 唯一默认)
+models/shuttlecut.pt          # 官方 R3D 生产模型(第三优先)
+models/shuttlecut-probe.pt    # V-JEPA 探针(跨场馆零校准,第二优先;3 种子集成)
 models/shuttlecut-<stem>.pt   # 视频专属校准模型(calibrate 产物,自动优先)
 models/exp/<tag>.pt           # 实验沙盒(train_heavy 产物,永不参与自动查找)
 ```

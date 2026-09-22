@@ -35,8 +35,12 @@ PROCESS_EPILOG = """输出契约(恰好 2 个文件):
   <out-dir>/<stem>-highlights.mp4     精选回合(精彩度降序)
 流契约:进度/警告→stderr(阶段 [1/5]..[5/5]+百分比);摘要+输出路径→stdout;
   长时间无 stdout 属正常,勿判卡死。首次处理某视频较慢(建帧/差分缓存),重复处理显著加快。
-模型解析(默认无需指定):models/shuttlecut-<stem>.pt(校准优先) →
-  models/shuttlecut.pt(官方;缺失时按内置 manifest 自动下载+SHA-256 校验)。
+模型解析(默认无需指定,三层优先):
+  1) models/shuttlecut-<stem>.pt —— 本视频校准模型(calibrate 产物,最优)
+  2) models/shuttlecut-probe.pt —— V-JEPA 探针(跨场馆零校准,LOEO 0.83/0.80;
+     缺失时自动下载;首次用需 HF 编码器 1.2GB 落 models/hf,一次性)
+  3) models/shuttlecut.pt —— 官方 R3D(缺失时自动下载+SHA-256 校验)
+  显式 --model 指定时绕过探针,仅用 R3D 权重。
 退出码:0 成功 / 1 失败 / 2 用法错。
 Agent 处置规则:
   - exit 1 "输出已存在" → 征得同意后加 --overwrite 重跑
@@ -96,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="输出目录(默认: ./shuttlecut-output)")
     pr.add_argument("--model", default=None, metavar="CKPT[,CKPT...]",
                     help="时序模型 ckpt;逗号分隔多模型启用边界投票。"
-                            "默认自动查找: models/shuttlecut-<stem>.pt(校准优先) → models/shuttlecut.pt(官方)")
+                            "默认三层:校准模型 → V-JEPA 探针(跨场馆) → 官方 R3D;详见 process --help")
     pr.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     pr.add_argument("--overwrite", action="store_true", help="覆盖已存在的输出")
     pr.add_argument("--write-metadata", action="store_true",
@@ -208,42 +212,60 @@ def process_one(video: str, out_root: str, args) -> int:
         if not args.quiet:
             print(msg, file=sys.stderr)
 
-    ckpts = _resolve_models(stem, args.model)
-    if not ckpts:
-        got = _ensure_default_model(progress)
-        if got:
-            ckpts = [got]
-        else:
-            _err("未找到时序模型且自动下载失败。恢复:①检查网络后重试 ②手动放置 models/shuttlecut.pt ③先运行 calibrate(标注协议见 calibrate --help)")
-            return 1
-    missing = [c for c in ckpts if not Path(c).exists()]
-    if missing:
-        _err(f"模型不存在: {', '.join(missing)}")
-        return 1
+    probe_seg = None
+    if not args.model and not Path(f"models/shuttlecut-{stem}.pt").exists():
+        from shuttlecut import vjepa
+        try:
+            if vjepa.ensure_probe(progress):
+                pcent, pprobs, probe_seg = vjepa.detect(
+                    video, str(work), device=args.device, progress=progress)
+                if not args.quiet:
+                    print(f"配置: {meta.width}x{meta.height} @ {meta.fps:.0f}fps, {meta.duration_s:.0f}s"
+                          f" | 模型 V-JEPA 探针(路线 20,跨场馆零校准) | 设备 {args.device} | 输出 {outdir}",
+                          file=sys.stderr)
+                progress(f"[3/5] 切分完成: {len(probe_seg)} 个回合(V-JEPA 探针)")
+        except Exception as e:
+            probe_seg = None
+            progress(f"[warn] V-JEPA 探针路径失败({type(e).__name__}: {e}),回退 R3D")
 
-
-    from shuttlecut.temporal import (TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15,
-                                    infer_curve, load_diffs, two_scale_segments)
-    frames = extract_frames15(video, str(work / "frames15"))
-    if not args.quiet:
-        print(f"配置: {meta.width}x{meta.height} @ {meta.fps:.0f}fps, {meta.duration_s:.0f}s "
-              f"| 模型 {len(ckpts)} 个({','.join(Path(c).name for c in ckpts)}) "
-              f"| 设备 {args.device} | 输出 {outdir}", file=sys.stderr)
-    curves = []
-    if len(ckpts) > 1 or not (work / "diffs_cache.npy").exists():
-        progress(f"[1/5] 帧准备 {len(frames)} 帧…")
-    diffs = load_diffs(frames, str(work / "diffs_cache.npy"),
-                       progress=lambda m: progress(f"[1/5] {m}"))
-    for mi, ck in enumerate(ckpts, 1):
-        curves.append(infer_curve(frames, ck, device=args.device, batch=16 if args.device in ("auto", "cuda") else 8,
-                                  diffs=diffs, progress=lambda m: progress(f"[2/5] 模型 {mi}/{len(ckpts)}: {m}")))
-    centers, probs = curves[0]
-
-    tune = {**TWO_SCALE_DEFAULTS, "sm": 9, "lo": 0.3, "min_len_s": 1.0, "mg": 2.0}
-    if len(curves) > 1:
-        segs = boundary_vote([two_scale_segments(c, p, None, None, **tune) for c, p in curves])
+    if probe_seg is not None:
+        centers, probs, segs = pcent, pprobs, probe_seg
     else:
-        segs = two_scale_segments(centers, probs, None, None, **tune)
+        ckpts = _resolve_models(stem, args.model)
+        if not ckpts:
+            got = _ensure_default_model(progress)
+            if got:
+                ckpts = [got]
+            else:
+                _err("未找到时序模型且自动下载失败。恢复:①检查网络后重试 ②手动放置 models/shuttlecut.pt ③先运行 calibrate(标注协议见 calibrate --help)")
+                return 1
+        missing = [c for c in ckpts if not Path(c).exists()]
+        if missing:
+            _err(f"模型不存在: {', '.join(missing)}")
+            return 1
+
+        from shuttlecut.temporal import (TWO_SCALE_DEFAULTS, boundary_vote, extract_frames15,
+                                        infer_curve, load_diffs, two_scale_segments)
+        frames = extract_frames15(video, str(work / "frames15"))
+        if not args.quiet:
+            print(f"配置: {meta.width}x{meta.height} @ {meta.fps:.0f}fps, {meta.duration_s:.0f}s "
+                  f"| 模型 {len(ckpts)} 个({','.join(Path(c).name for c in ckpts)}) "
+                  f"| 设备 {args.device} | 输出 {outdir}", file=sys.stderr)
+        curves = []
+        if len(ckpts) > 1 or not (work / "diffs_cache.npy").exists():
+            progress(f"[1/5] 帧准备 {len(frames)} 帧…")
+        diffs = load_diffs(frames, str(work / "diffs_cache.npy"),
+                           progress=lambda m: progress(f"[1/5] {m}"))
+        for mi, ck in enumerate(ckpts, 1):
+            curves.append(infer_curve(frames, ck, device=args.device, batch=16 if args.device in ("auto", "cuda") else 8,
+                                      diffs=diffs, progress=lambda m: progress(f"[2/5] 模型 {mi}/{len(ckpts)}: {m}")))
+        centers, probs = curves[0]
+
+        tune = {**TWO_SCALE_DEFAULTS, "sm": 9, "lo": 0.3, "min_len_s": 1.0, "mg": 2.0}
+        if len(curves) > 1:
+            segs = boundary_vote([two_scale_segments(c, p, None, None, **tune) for c, p in curves])
+        else:
+            segs = two_scale_segments(centers, probs, None, None, **tune)
     if not segs:
         _err("未检出任何回合。视频可能无对打内容或场馆差异过大;可跑 calibrate 重适配(见 calibrate --help),仍无则检查视频内容")
         return 1
