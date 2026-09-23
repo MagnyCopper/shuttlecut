@@ -59,7 +59,8 @@ def extract_features(frames: list[str], cache_path: str, device: str = "auto",
         return (np.load(cache_path).astype(np.float32),
                 np.load(str(cache_path).replace("vjepa_feat", "vjepa_centers")))
     if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = ("mps" if torch.backends.mps.is_available()
+                  else "cuda" if torch.cuda.is_available() else "cpu")
     model = _load_encoder(device, progress)
     starts = list(range(0, len(frames) - WIN + 1, STRIDE))
     feats: list[np.ndarray] = []
@@ -153,7 +154,9 @@ def detect(video: str, work_dir: str, device: str = "auto", progress=None):
                           nn.TransformerEncoder(enc, L), nn.Linear(d, 1))
         p.load_state_dict(sd)
         probes.append(p.eval())
-    dev = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
+    dev = (("mps" if torch.backends.mps.is_available()
+            else "cuda" if torch.cuda.is_available() else "cpu")
+           if device == "auto" else device)
     probs_sum = np.zeros(len(cent), np.float64)
     chunk, ov = 1024, 128
     with torch.no_grad():

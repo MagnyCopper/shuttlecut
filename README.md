@@ -1,6 +1,15 @@
 # ShuttleCut
 
+[![CI](https://github.com/MagnyCopper/shuttlecut/actions/workflows/ci.yml/badge.svg)](https://github.com/MagnyCopper/shuttlecut/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+
 羽毛球回合自动剪辑:DJI Osmo Pocket 拍摄的整场视频进,回合片段与集锦出,**新视频零训练直接推理**。
+
+> **English** — ShuttleCut turns full-match badminton videos into rally reels and
+> highlight clips with one command. A frozen V-JEPA 2 encoder + lightweight probe
+> achieves 0.85/0.84 P/R on unseen venues with zero training. CUDA GPUs and
+> Apple Silicon (Metal) supported.
 
 ## 管线
 
@@ -37,7 +46,9 @@ uv pip install -e .            # CPU 版 torch,开箱可用
 uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 # 国内加速:--find-links https://mirrors.aliyun.com/pytorch-wheels/cu130/ --default-index https://mirrors.aliyun.com/pypi/simple/
 
-winget install Gyan.FFmpeg     # 新开终端后 ffmpeg -version 验证
+winget install Gyan.FFmpeg     # Windows;新开终端后 ffmpeg -version 验证
+brew install ffmpeg            # macOS(M 系列 Videotoolbox 硬编硬解自动启用)
+# macOS 无需 CUDA:--device 自动走 mps(Metal)
 ```
 
 素材与权重(不入库,放本地):

@@ -4,11 +4,22 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shuttlecut"
-version = "1.0.0"
-description = "Badminton rally auto-clipping: motion-compensated temporal pipeline with zero-training inference"
+version = "1.1.0"
+description = "Badminton rally auto-clipping: full match video in, rally reels + highlights out — zero-training cross-venue via V-JEPA 2 probe"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
+authors = [{ name = "MagnyCopper" }]
+keywords = ["badminton", "video", "highlight", "temporal-action-localization", "vjepa", "clip"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video :: Conversion",
+]
 dependencies = [
     "numpy>=1.26",
     "opencv-python>=4.10",
@@ -19,8 +30,15 @@ dependencies = [
     "torch>=2.9",
     "torchvision>=0.24",
     "transformers>=4.53",
-    "pytorchvideo>=0.1.5",
 ]
+
+[project.optional-dependencies]
+train = ["pytorchvideo>=0.1.5"]
+
+[project.urls]
+Homepage = "https://github.com/MagnyCopper/shuttlecut"
+Issues = "https://github.com/MagnyCopper/shuttlecut/issues"
+Changelog = "https://github.com/MagnyCopper/shuttlecut/blob/main/CHANGELOG.md"
 
 [project.scripts]
 shuttlecut = "shuttlecut.cli:main"
