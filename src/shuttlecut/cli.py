@@ -105,6 +105,11 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--write-metadata", action="store_true",
                     help="额外输出 <stem>-rallies.json(时间戳/评分,机器可读)")
     pr.add_argument("--quiet", action="store_true", help="抑制进度日志(仅保留最终摘要)")
+    pr.add_argument("--pre", type=float, default=1.5, metavar="SEC",
+                    help="每回合片头余量秒(默认 1.5)")
+    pr.add_argument("--post", type=float, default=3.5, metavar="SEC",
+                    help="每回合片尾余量秒(默认 3.5,覆盖高远球滞空;"
+                         "个别回合仍见球在飞被切时调大,如 --post 5)")
 
     cb = sub.add_parser(
         "calibrate", help="新视频 5 分钟人工校准:条带标注 → TTA 适配模型",
@@ -285,6 +290,7 @@ def process_one(video: str, out_root: str, args) -> int:
     rallies = [Rally(start=a, end=b, motion_peak=float(probs.max()), confidence=1.0)
                for a, b in segs]
     clips = export_clips(video, rallies, str(work / "cut"),
+                         pre_s=args.pre, post_s=args.post,
                          progress=lambda i, n: progress(f"[4/5] 切片 {i}/{n}"))
     export_reel(clips, str(all_path), list_dir=str(work))
     progress(f"[5/5] 合并集锦…")
