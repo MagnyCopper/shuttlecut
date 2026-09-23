@@ -18,6 +18,14 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+      - name: Install ffmpeg
+        shell: pwsh
+        run: |
+          switch ("${{ runner.os }}") {
+            "Linux"   { sudo apt-get update && sudo apt-get install -y ffmpeg }
+            "macOS"   { brew install ffmpeg }
+            "Windows" { choco install -y ffmpeg }
+          }
       - name: Install
         run: |
           python -m pip install --upgrade pip
