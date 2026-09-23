@@ -15,14 +15,19 @@ class Rally:
 
 
 def _video_encoder() -> list[str]:
-    """优先 VideoToolbox 硬编(4K 切片快),不可用回退 libx264。"""
+    """优先硬编(NVENC/VideoToolbox)输出 1080p;回退 libx264 也必须缩到 1080p
+    (4K 软编码病理慢:实测 10s 片段 52s)。"""
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"],
                            capture_output=True, text=True, check=True)
+    if "h264_nvenc" in probe.stdout:
+        return ["-c:v", "h264_nvenc", "-b:v", "8M",
+                "-vf", "scale=-2:1080,format=yuv420p"]
     if "h264_videotoolbox" in probe.stdout:
         # 10bit HEVC 源→8bit 1080p:避免硬编不收 10bit 导致的软转换慢路径
         return ["-c:v", "h264_videotoolbox", "-b:v", "8M",
                 "-vf", "scale=-2:1080,format=yuv420p"]
-    return ["-c:v", "libx264", "-preset", "fast", "-crf", "20"]
+    return ["-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-vf", "scale=-2:1080,format=yuv420p"]
 
 
 def export_clips(video: str, rallies: list[Rally], out_dir: str,

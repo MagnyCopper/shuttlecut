@@ -33,9 +33,11 @@ def probe(path: str) -> VideoMeta:
 
 
 def hwaccel_decode() -> list[str]:
-    """VideoToolbox 硬解加速(4K HEVC);不可用返回空列表。"""
+    """硬解加速(4K HEVC 10bit 软解是瓶颈):cuda(NVDEC)→videotoolbox→空。"""
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-hwaccels"],
                            capture_output=True, text=True, check=True)
+    if "cuda" in probe.stdout:
+        return ["-hwaccel", "cuda"]
     return ["-hwaccel", "videotoolbox"] if "videotoolbox" in probe.stdout else []
 
 
