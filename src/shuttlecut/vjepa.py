@@ -66,7 +66,7 @@ def extract_features(frames: list[str], cache_path: str, device: str = "auto",
     t_last = [0.0]
     import time
     t0 = time.time()
-    batch = 8
+    batch = 16
     with torch.no_grad():
         for k in range(0, len(starts), batch):
             xs = np.zeros((min(batch, len(starts) - k), WIN, 256, 256, 3), np.float32)
@@ -132,7 +132,11 @@ def detect(video: str, work_dir: str, device: str = "auto", progress=None):
     blob = torch.load(ck, map_location="cpu")
     meta = blob["meta"]
     sm, hi, lo, ml, mg = blob["seg"]
+    if progress:
+        progress("[1/5] 帧准备(抽帧 15fps,首次约 0.6× 视频时长)…")
     frames = extract_frames15(video, str(Path(work_dir) / "frames15"))
+    if progress:
+        progress(f"[1/5] 帧就绪 {len(frames)} 帧")
     if len(frames) < WIN:
         raise RuntimeError(f"视频过短({len(frames)} 帧 < {WIN})")
     feat, cent = extract_features(frames, str(Path(work_dir) / "vjepa_feat_w16.npy"),
