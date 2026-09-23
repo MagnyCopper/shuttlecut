@@ -84,8 +84,7 @@ def _dec_ok(hw: str) -> bool:
 
 
 def hwaccel_decode() -> list[str]:
-    """硬解加速(4K HEVC 10bit 软解是瓶颈):cuda(NVDEC)→videotoolbox→空。
-    功能性探测(编译列表会误报,无 GPU 环境实调即崩)。"""
+    """硬解初筛(cuda→videotoolbox→空);实战失败由 media_run 自动降级兜底。"""
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-hwaccels"],
                            capture_output=True, text=True, check=True)
     if "cuda" in probe.stdout and _dec_ok("cuda"):
@@ -105,6 +104,43 @@ def run_ffmpeg(cmd: list[str]) -> None:
             + "\n".join(tail))
 
 
+_PINNED: dict[str, tuple[int, int] | None] = {"dec": None, "enc": None}
+
+
+def media_run(build: "Callable[[list[str], list[str]], list[str]]",
+              on_fallback=None) -> None:
+    """解码/编码双链降级执行:探测只做初筛,实战失败当场降档并记忆。
+    build(dec_args, enc_args) 返回完整命令;链:硬解→软解 × nvenc→vt→x264。"""
+    decs = [hwaccel_decode(), []]
+    encs = _encoder_chain()
+    pd, pe = _PINNED["dec"], _PINNED["enc"]
+    order = ([(pd, pe)] if (pd is not None and pe is not None) else
+             [(di, ei) for di in range(len(decs)) for ei in range(len(encs))])
+    last_err: Exception | None = None
+    for di, ei in order:
+        try:
+            run_ffmpeg(build(decs[di], encs[ei]))
+            if (di, ei) != (pd, pe):
+                _PINNED["dec"], _PINNED["enc"] = (di, ei)
+                if on_fallback:
+                    on_fallback(decs[di], encs[ei])
+            return
+        except RuntimeError as e:
+            last_err = e
+    raise last_err  # type: ignore[misc]
+
+
+def _encoder_chain() -> list[list[str]]:
+    probe = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"],
+                           capture_output=True, text=True, check=True)
+    vf = "scale=-2:1080,format=yuv420p"
+    chain = []
+    if "h264_nvenc" in probe.stdout and _enc_ok("h264_nvenc"):
+        chain.append(["-c:v", "h264_nvenc", "-b:v", "8M", "-vf", vf])
+    if "h264_videotoolbox" in probe.stdout and _enc_ok("h264_videotoolbox"):
+        chain.append(["-c:v", "h264_videotoolbox", "-b:v", "8M", "-vf", vf])
+    chain.append(["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-vf", vf])
+    return chain
 def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
                    t_start: float | None = None, t_end: float | None = None) -> list[str]:
     out = Path(outdir)
