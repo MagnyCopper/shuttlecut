@@ -32,13 +32,55 @@ def probe(path: str) -> VideoMeta:
     )
 
 
+_CAP_CACHE: dict[str, bool] = {}
+
+
+def _enc_ok(name: str) -> bool:
+    """功能性探测:1 帧实编(编译列表≠可用,无 GPU 机器也编译 nvenc)。"""
+    if name not in _CAP_CACHE:
+        r = subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-f", "lavfi",
+             "-i", "color=black:s=256x256:d=0.1", "-c:v", name, "-f", "null", "-"],
+            capture_output=True, timeout=60)
+        _CAP_CACHE[name] = r.returncode == 0
+    return _CAP_CACHE[name]
+
+
+def _dec_ok(hw: str) -> bool:
+    """功能性探测:硬解 0.5s h264 样片(解码器必须吃真实编码流)。"""
+    import tempfile
+    key = f"dec:{hw}"
+    if key not in _CAP_CACHE:
+        ok = False
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+                tmp = f.name
+            subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi",
+                 "-i", "color=black:s=256x256:d=0.5", "-c:v", "libx264", tmp],
+                capture_output=True, timeout=60, check=True)
+            r = subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-hwaccel", hw, "-i", tmp,
+                 "-f", "null", "-"], capture_output=True, timeout=60)
+            ok = r.returncode == 0
+        except Exception:
+            ok = False
+        finally:
+            Path(tmp).unlink(missing_ok=True)
+        _CAP_CACHE[key] = ok
+    return _CAP_CACHE[key]
+
+
 def hwaccel_decode() -> list[str]:
-    """硬解加速(4K HEVC 10bit 软解是瓶颈):cuda(NVDEC)→videotoolbox→空。"""
+    """硬解加速(4K HEVC 10bit 软解是瓶颈):cuda(NVDEC)→videotoolbox→空。
+    功能性探测(编译列表会误报,无 GPU 环境实调即崩)。"""
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-hwaccels"],
                            capture_output=True, text=True, check=True)
-    if "cuda" in probe.stdout:
+    if "cuda" in probe.stdout and _dec_ok("cuda"):
         return ["-hwaccel", "cuda"]
-    return ["-hwaccel", "videotoolbox"] if "videotoolbox" in probe.stdout else []
+    if "videotoolbox" in probe.stdout and _dec_ok("videotoolbox"):
+        return ["-hwaccel", "videotoolbox"]
+    return []
 
 
 def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
