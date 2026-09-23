@@ -36,13 +36,25 @@ _CAP_CACHE: dict[str, bool] = {}
 
 
 def _enc_ok(name: str) -> bool:
-    """功能性探测:1 帧实编(编译列表≠可用,无 GPU 机器也编译 nvenc)。"""
+    """功能性探测:1 秒 testsrc 真实落盘 mp4(编译列表≠可用;3 帧+null 输出会漏判
+    "开编码器成功但送帧才崩"的坏环境)。"""
+    import tempfile
     if name not in _CAP_CACHE:
-        r = subprocess.run(
-            ["ffmpeg", "-loglevel", "error", "-f", "lavfi",
-             "-i", "color=black:s=256x256:d=0.1", "-c:v", name, "-f", "null", "-"],
-            capture_output=True, timeout=60)
-        _CAP_CACHE[name] = r.returncode == 0
+        ok = False
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+                tmp = f.name
+            r = subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi",
+                 "-i", "testsrc2=duration=1:size=320x240:rate=30",
+                 "-c:v", name, "-pix_fmt", "yuv420p", tmp],
+                capture_output=True, timeout=60)
+            ok = r.returncode == 0 and Path(tmp).stat().st_size > 1024
+        except Exception:
+            ok = False
+        finally:
+            Path(tmp).unlink(missing_ok=True)
+        _CAP_CACHE[name] = ok
     return _CAP_CACHE[name]
 
 
