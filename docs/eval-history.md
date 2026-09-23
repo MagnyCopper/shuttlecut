@@ -337,3 +337,9 @@ GT 时间轴对齐已验证(音频移位扫描 off=0 最优)。
 - 代理流排查:该 DJI 双流的第二轨是单帧封面图(nb_read_frames=1),不可用于低分辨率抽帧。
 - 日志:补 [1/5] 起止行(原探针路径静默 6.5 分钟);剩余空间=[1/5] 进行中百分比(需解析 ffmpeg -progress)。
 - **理论下限**:两遍解码(frames15 一遍+切片一遍)≈649s 纯解码;流水线重叠([1/5] 边解码边喂 [2/5] 特征,解码 CPU/NVDEC 与 V-JEPA GPU 本可并行)预计省 ~5 分钟(总时长 -29%),属后续架构项。
+
+### Session 13 附六:跨平台与开源就绪(2026-09-23)
+- **CI 三平台绿**(ubuntu/macos/windows,pytest 63 项)。过程中修掉:①pytest 依赖入 dev extra;②runner 装 ffmpeg;③x3d 测试 importorskip;④**ffmpeg 能力探测两次升级**——编译列表误报(无 GPU 也编译 nvenc)→功能性探测(1 帧实编)→仍漏判(开编码器成功送帧才崩的环境)→最终 media_run 双链降级(探测初筛+实战失败当场降档+记忆),顺带 ffmpeg 失败统一携带 stderr。
+- **诚实纠错**:附四的 post 2.0→3.5 修复当时因脚本替换静默失败**从未落盘**(测试仍按 2.0 断言而绿),0034"重切复检好转"实为判读方差。今日整文件重写后 post=3.5 真实生效,测试期望已对齐 11.0s 口径并三平台锚定。
+- **Mac(M4)审查 6/6**:vjepa 双 device 分支补 mps(fp16 仅 cuda);R3D/硬解/硬编 videotoolbox 路径原生在位;CLI --device 已含 mps。
+- **开源就绪**:CI/CONTRIBUTING/CHANGELOG/issue 模板/pyproject 元数据(classifiers+urls+[train]/[dev] extras)/README 徽章+英文简介+brew 安装;版本 1.1.0。剩余开源动作(需用户):仓库转 public、GitHub 描述/Topics、(可选)中英双语 README 全译。
