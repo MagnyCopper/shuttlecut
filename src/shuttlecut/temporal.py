@@ -151,12 +151,10 @@ def extract_frames15(video: str, out_dir: str) -> list[str]:
     frames = sorted(str(p) for p in d.glob("frame_*.jpg"))
     if frames:
         return frames
-    from shuttlecut.ffmpeg import hwaccel_decode
-    subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-y", *hwaccel_decode(), "-i", video,
-         "-vf", "fps=15,scale=960:-2", "-q:v", "3", str(d / "frame_%06d.jpg")],
-        check=True,
-    )
+    from shuttlecut.ffmpeg import media_run
+    media_run(lambda dec, _: [
+        "ffmpeg", "-loglevel", "error", "-y", *dec, "-i", video,
+        "-vf", "fps=15,scale=960:-2", "-q:v", "3", str(d / "frame_%06d.jpg")])
     return sorted(str(p) for p in d.glob("frame_*.jpg"))
 
 
