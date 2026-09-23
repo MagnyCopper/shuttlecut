@@ -83,6 +83,16 @@ def hwaccel_decode() -> list[str]:
     return []
 
 
+def run_ffmpeg(cmd: list[str]) -> None:
+    """统一 ffmpeg 调用:失败时携带 stderr 与恢复路径(不吞错误)。"""
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        tail = (r.stderr or "").strip().splitlines()[-4:]
+        raise RuntimeError(
+            f"ffmpeg 失败(rc={r.returncode}): {' '.join(cmd[:8])}…\n"
+            + "\n".join(tail))
+
+
 def extract_frames(video: str, outdir: str, fps: float = 5.0, width: int = 1280,
                    t_start: float | None = None, t_end: float | None = None) -> list[str]:
     out = Path(outdir)
