@@ -1,6 +1,6 @@
 ---
-name: Bug 报告
-about: 报告问题帮助我们改进
+name: Bug report / 问题报告
+about: Report a bug / 帮助改进(中英文均可)
 labels: bug
 body:
   - type: textarea

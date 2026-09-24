@@ -1,4 +1,10 @@
-# 贡献指南 / Contributing
+# Contributing / 贡献指南
+
+**EN — Quick rules:** tests must pass (`pytest -q`, 3-OS CI); experimental models go to
+`models/exp/`; promotion requires ≥3-seed comparison logged in `docs/eval-history.md`;
+CLI behavior changes need e2e verification (`process` outputs exactly 2 files);
+operational knowledge lives in `--help` only. The experiment ledger and lab notes are
+kept in Chinese; code comments and PR discussions in either language are welcome.
 
 ## 快速开始
 

@@ -1,5 +1,7 @@
 # ShuttleCut
 
+[English](README.en.md) | 简体中文
+
 [![CI](https://github.com/MagnyCopper/shuttlecut/actions/workflows/ci.yml/badge.svg)](https://github.com/MagnyCopper/shuttlecut/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
@@ -10,7 +12,6 @@
 > highlight clips with one command. A frozen V-JEPA 2 encoder + lightweight probe
 > achieves 0.85/0.84 P/R on unseen venues with zero training. CUDA GPUs and
 > Apple Silicon (Metal) supported.
-
 ## 管线
 
 ```
