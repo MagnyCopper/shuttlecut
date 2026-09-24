@@ -173,14 +173,6 @@ def ensemble_curves(videos, seeds, dev):
     return {s: np.mean(cs, axis=0) for s, cs in curves.items()}
 
 
-import torch as _torch
-
-def torch_no_grad_marker(fn):
-    def wrapper(*a, **k):
-        import torch
-        with torch.no_grad():
-            return fn(*a, **k)
-    return wrapper
 
 
 def main():

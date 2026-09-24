@@ -36,6 +36,6 @@ models/exp/<tag>.pt           # 实验沙盒(train_heavy 产物,永不参与自�
 - 一切对照实验必须 ≥3 种子(训练方差 ±0.15);GT 一律 look_at 视觉构建(协议=calibrate --help 内标注标准)
 
 ### 测试与验证
-- `pytest -q` 全绿是提交前提(当前 54 项)
+- `pytest -q` 全绿是提交前提(当前 63 项,三平台 CI)
 - CLI 改动需 e2e 验证:`process` 后检查输出目录恰好 2 文件
 - 有关 GPU 的长任务用分离脚本模式(temp/pipe_*.ps1 + 日志轮询,勿阻塞主会话)

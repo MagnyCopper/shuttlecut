@@ -1,8 +1,5 @@
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-
-from shuttlecut.ffmpeg import hwaccel_decode
 
 
 @dataclass
